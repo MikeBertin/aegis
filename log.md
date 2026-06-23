@@ -6,6 +6,15 @@ Decisions, progress notes, session diary. Most recent first.
 
 ---
 
+## 2026-06-23 — M3 actuation + safety layer built (mock-tested) | hardware-gated | next: order kit
+- **`safety.py` — the spine.** `SafetyGate.evaluate()` enforces track-all/fire-inanimate-only in code: must be armed → target on inanimate allowlist → HARD denylist (people/animals) overrides everything → must be locked (no mid-slew fire) → person/animal-near-target interlock. Pure, defence-in-depth. End-to-end demo: only the clear inanimate shot fired; disarmed/unlocked/person-overlap/person-target all refused.
+- **`hardware/` package.** `base.py` (ServoDriver/Trigger ABCs + pure `to_servo_angle` mapping with centre/limits/invert), `mock.py` (laptop drivers that record + enforce spin-up-before-fire), lazy real stubs `pca9685.py` (PCA9685ServoDriver) + `nerf.py` (NerfTrigger: GPIO flywheel relay + trigger servo). Import-safe — no adafruit/Jetson libs needed on dev machine.
+- **`turret.py`** ties it together: controller angles → servos, detections → gate → gated trigger. Firing needs arm switch AND explicit fire AND CLEAR decision (never automatic).
+- **Pipeline + CLI:** `python main.py --turret mock|real`. 'a' arm/disarm, 'f' fire, safety HUD shows ARMED/SAFE + reason. Mock runs the full loop today.
+- **Tests:** 42 green (+20: safety refusals/permit/iou, servo mapping, mock interlock, turret arm/fire/disarm/lock).
+- **BOM (b):** `docs/HARDWARE.md` — concrete M3 parts list (~£425), wiring diagram matching `hardware/`, safety wiring rules, bring-up order. Workspace `HARDWARE-BUDGET.md` updated to match.
+- **Blocked on:** physical kit not ordered. All software through "drive real servos" is done & tested.
+
 ## 2026-06-23 — M2 built & tuned in sim | PID control loop validated before any servo | next: M3 hardware
 - **`controller.py`** — velocity-output PID (anti-windup, output limit, no derivative kick) + `PanTiltController` (per-axis travel + slew-rate limits, configurable axis signs, holds + freezes integrators on target-loss). Pure Python, unit-tested. Output = the exact pan/tilt angles M3 sends to servos.
 - **`simulator.py`** — closed-loop camera/target model (`observe()` mirrors `tracker.aim_error` conventions) + step/sine/ramp motion profiles + metrics (settle time, overshoot, steady-state, RMS/peak tracking error, on-frame %). Lets us tune thousands of steps in ms.

@@ -22,7 +22,7 @@ The deeper point: the perception-to-actuation loop is the foundation of every ph
 |---|-----------|--------|--------|
 | M1 | ✅ Webcam + Jetson/laptop + pretrained YOLO → on-screen crosshair tracks target | Perception + targeting loop (£0 hardware) | Done 2026-06-23 |
 | M2 | ◑ PID control loop tuned in simulation (servos pending hardware) | Control loop, validated in-sim | Sim done 2026-06-23 |
-| M3 | Nerf flywheel gun + servo trigger + full safety gating | Actuation + safety architecture | TBD |
+| M3 | ◑ Actuation layer + safety gate built (mock-tested); awaiting hardware | Actuation + safety architecture | Software done 2026-06-23 |
 | M4 | Custom-trained detector, TensorRT-optimised, deployed on Jetson | Dataset → train → edge-deploy pipeline | TBD |
 
 ## Tech Stack
@@ -66,21 +66,41 @@ will send to the servos.
 > and Kd damps the acquisition overshoot. `tilt_sign` absorbs the mount-axis
 > inversion you hit on the real bench.
 
+## M3 — actuation + safety (built, awaiting hardware)
+The actuation layer and the **safety gate** are written and fully mock-tested,
+so the whole arm → track → gated-fire loop runs on a laptop today:
+```bash
+python main.py --classes "sports ball" --turret mock   # full loop, no hardware
+#   'a' arm/disarm   'f' fire (only if the gate says CLEAR)   'q' quit
+python main.py --classes "sports ball" --turret real   # on the wired Jetson
+```
+**Safety policy is enforced in code, not just documented** (`safety.py`):
+1. must be ARMED (human-in-the-loop), 2. target on the inanimate allowlist,
+3. a HARD denylist (people/animals) overrides everything, 4. must be LOCKED
+(no firing mid-slew), 5. interlock — no fire if a person/animal is near the
+target. Firing is never automatic: it needs the arm switch **and** an explicit
+fire action **and** a `CLEAR` decision. Drivers are swappable — `MockServoDriver`
+/`MockTrigger` on a laptop, `PCA9685ServoDriver`/`NerfTrigger` on the Jetson
+(same `Turret` logic). Bill of materials + wiring: [docs/HARDWARE.md](docs/HARDWARE.md).
+
 ## Repo Layout
 ```
 aegis/
-├── main.py                  # CLI: live target tracking (M1) + live controller (M2)
+├── main.py                  # CLI: live tracking (M1) + controller (M2) + turret (M3)
 ├── sim.py                   # CLI: M2 control simulator & PID tuner
-├── requirements.txt
+├── docs/HARDWARE.md         # M3 bill of materials + wiring + bring-up
 ├── src/aegis/
 │   ├── config.py            # runtime Config dataclass
 │   ├── tracker.py           # target selection + aim-error maths (no torch/cv2 — tested)
 │   ├── controller.py        # PID + PanTiltController + tuned factory (no heavy deps — tested)
 │   ├── simulator.py         # closed-loop camera/target model + tracking metrics
+│   ├── safety.py            # SafetyGate fire-authorisation logic (pure — tested)
+│   ├── turret.py            # M3 integration: controller+servos+trigger+gate
 │   ├── detector.py          # Ultralytics YOLO -> Detection adapter (lazy torch import)
 │   ├── overlay.py           # cv2 HUD: crosshair, lock box, error line
-│   └── pipeline.py          # camera->detect->select->aim_error->controller->draw loop
-└── tests/                   # test_tracker.py + test_controller.py (pure-logic, no heavy deps)
+│   ├── pipeline.py          # camera->detect->select->controller->turret->draw loop
+│   └── hardware/            # base ABCs + servo mapping, mock drivers, PCA9685/Nerf (lazy)
+└── tests/                   # tracker, controller, safety, hardware — 42 pure-logic tests
 ```
 The architecture is deliberately split so the **targeting and control maths are
 headless and testable**, and the same `controller.py` runs unchanged in the
