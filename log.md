@@ -6,6 +6,15 @@ Decisions, progress notes, session diary. Most recent first.
 
 ---
 
+## 2026-06-24 — M4 custom-detector pipeline built & smoke-tested | dataset→train→export proven on CPU | next: real data / hardware
+- **`aegis.data` (pure, tested):** `dataset.py` — YOLO label format (`xyxy_to_yolo`/inverse with clamping, `label_line`), deterministic `split_dataset` (keeps ≥1 in val), `data_yaml` generator. `build.py` — writes the Ultralytics tree (images/labels/{train,val} + data.yaml) from annotated samples. `synth.py` — synthetic "balloon" generator (coloured ellipse + highlight + string on noise) to validate plumbing with zero real data.
+- **CLIs (thin Ultralytics wrappers):** `train.py` (fine-tune yolo11n; `--synthetic N` for smoke-test; output pinned to repo-local gitignored `runs/` via absolute project path — global ultralytics runs_dir was leaking to workspace), `export.py` (ONNX on laptop, TensorRT engine on Jetson w/ FP16/INT8 notes), `capture.py` (webcam grab → datasets/<name>/raw for labelling).
+- **Verified end-to-end on CPU:** synthetic samples → build YOLO tree → 1-epoch YOLOv11 fine-tune → ONNX export. Whole chain runs. 51 headless tests (+9 dataset: coord round-trip, clamp, split determinism/proportions/edge-cases, data.yaml).
+- **Safety tie-in:** `balloon` added to `SafetyGate` DEFAULT_FIREABLE — a custom-trained class becomes fireable while people/animals stay on the hard denylist. Closes targeting→safety loop.
+- **Cleanup:** removed stray ultralytics output that had leaked to `workspace/runs`; training now stays inside `aegis/runs` (gitignored). datasets/ + runs/ excluded from repo.
+- **Docs:** `docs/M4-TRAINING.md` — full capture→label→train→deploy workflow, why edge optimisation (ONNX→TensorRT, FP16/INT8 calibration) is the interesting part.
+- **Remaining (real-world):** collect+label a real balloon dataset, train properly, build the TensorRT engine on the Jetson.
+
 ## 2026-06-23 — M3 actuation + safety layer built (mock-tested) | hardware-gated | next: order kit
 - **`safety.py` — the spine.** `SafetyGate.evaluate()` enforces track-all/fire-inanimate-only in code: must be armed → target on inanimate allowlist → HARD denylist (people/animals) overrides everything → must be locked (no mid-slew fire) → person/animal-near-target interlock. Pure, defence-in-depth. End-to-end demo: only the clear inanimate shot fired; disarmed/unlocked/person-overlap/person-target all refused.
 - **`hardware/` package.** `base.py` (ServoDriver/Trigger ABCs + pure `to_servo_angle` mapping with centre/limits/invert), `mock.py` (laptop drivers that record + enforce spin-up-before-fire), lazy real stubs `pca9685.py` (PCA9685ServoDriver) + `nerf.py` (NerfTrigger: GPIO flywheel relay + trigger servo). Import-safe — no adafruit/Jetson libs needed on dev machine.

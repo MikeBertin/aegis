@@ -23,7 +23,7 @@ The deeper point: the perception-to-actuation loop is the foundation of every ph
 | M1 | ✅ Webcam + Jetson/laptop + pretrained YOLO → on-screen crosshair tracks target | Perception + targeting loop (£0 hardware) | Done 2026-06-23 |
 | M2 | ◑ PID control loop tuned in simulation (servos pending hardware) | Control loop, validated in-sim | Sim done 2026-06-23 |
 | M3 | ◑ Actuation layer + safety gate built (mock-tested); awaiting hardware | Actuation + safety architecture | Software done 2026-06-23 |
-| M4 | Custom-trained detector, TensorRT-optimised, deployed on Jetson | Dataset → train → edge-deploy pipeline | TBD |
+| M4 | ◑ Dataset→train→export pipeline built & smoke-tested (real data + Jetson TensorRT pending) | Dataset → train → edge-deploy pipeline | Pipeline done 2026-06-24 |
 
 ## Tech Stack
 | Layer | Choice |
@@ -83,12 +83,29 @@ fire action **and** a `CLEAR` decision. Drivers are swappable — `MockServoDriv
 /`MockTrigger` on a laptop, `PCA9685ServoDriver`/`NerfTrigger` on the Jetson
 (same `Turret` logic). Bill of materials + wiring: [docs/HARDWARE.md](docs/HARDWARE.md).
 
+## M4 — custom detector (pipeline built, real data pending)
+Train a bespoke detector ("balloon" — the fireable showcase target) and deploy
+it optimised on the Jetson. The whole **dataset → train → export** chain runs on
+a laptop; only the final TensorRT engine build is Jetson-only. Smoke-tested
+end-to-end on synthetic data (build → 1-epoch train → ONNX export, CPU):
+```bash
+python train.py --synthetic 16 --epochs 1 --imgsz 160 --device cpu --name smoke
+python export.py runs/smoke/weights/best.pt --format onnx --imgsz 160
+# Real flow: capture.py -> label (Roboflow/CVAT) -> train.py --data ... -> export.py
+```
+The fiddly bits (YOLO label conversion, deterministic split, data.yaml) live in
+`aegis.data` and are unit-tested; `train.py`/`export.py` are thin Ultralytics
+wrappers. The trained class `balloon` is on the SafetyGate fireable allowlist,
+so a custom detector closes the targeting→safety loop. Full workflow:
+[docs/M4-TRAINING.md](docs/M4-TRAINING.md).
+
 ## Repo Layout
 ```
 aegis/
 ├── main.py                  # CLI: live tracking (M1) + controller (M2) + turret (M3)
 ├── sim.py                   # CLI: M2 control simulator & PID tuner
-├── docs/HARDWARE.md         # M3 bill of materials + wiring + bring-up
+├── capture.py train.py export.py   # M4: dataset capture, training, edge export
+├── docs/                    # HARDWARE.md (M3 BOM) + M4-TRAINING.md
 ├── src/aegis/
 │   ├── config.py            # runtime Config dataclass
 │   ├── tracker.py           # target selection + aim-error maths (no torch/cv2 — tested)
@@ -99,8 +116,9 @@ aegis/
 │   ├── detector.py          # Ultralytics YOLO -> Detection adapter (lazy torch import)
 │   ├── overlay.py           # cv2 HUD: crosshair, lock box, error line
 │   ├── pipeline.py          # camera->detect->select->controller->turret->draw loop
-│   └── hardware/            # base ABCs + servo mapping, mock drivers, PCA9685/Nerf (lazy)
-└── tests/                   # tracker, controller, safety, hardware — 42 pure-logic tests
+│   ├── hardware/            # base ABCs + servo mapping, mock drivers, PCA9685/Nerf (lazy)
+│   └── data/                # M4: YOLO label/split/data.yaml (pure), dataset builder, synth
+└── tests/                   # tracker, controller, safety, hardware, dataset — 51 pure tests
 ```
 The architecture is deliberately split so the **targeting and control maths are
 headless and testable**, and the same `controller.py` runs unchanged in the

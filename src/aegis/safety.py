@@ -27,10 +27,10 @@ HARD_NO_FIRE: frozenset[str] = frozenset(
     {"person", "cat", "dog", "bird", "horse", "sheep", "cow", "bear", "teddy bear"}
 )
 
-# Sensible inanimate defaults that the pretrained COCO model can already detect.
-# M4's custom model will add "balloon".
+# Sensible inanimate defaults the pretrained COCO model can already detect,
+# plus "balloon" from M4's custom-trained detector.
 DEFAULT_FIREABLE: frozenset[str] = frozenset(
-    {"sports ball", "bottle", "cup", "frisbee", "apple", "orange", "vase"}
+    {"balloon", "sports ball", "bottle", "cup", "frisbee", "apple", "orange", "vase"}
 )
 
 
