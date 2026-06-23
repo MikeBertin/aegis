@@ -6,6 +6,16 @@ Decisions, progress notes, session diary. Most recent first.
 
 ---
 
+## 2026-06-23 — M2 built & tuned in sim | PID control loop validated before any servo | next: M3 hardware
+- **`controller.py`** — velocity-output PID (anti-windup, output limit, no derivative kick) + `PanTiltController` (per-axis travel + slew-rate limits, configurable axis signs, holds + freezes integrators on target-loss). Pure Python, unit-tested. Output = the exact pan/tilt angles M3 sends to servos.
+- **`simulator.py`** — closed-loop camera/target model (`observe()` mirrors `tracker.aim_error` conventions) + step/sine/ramp motion profiles + metrics (settle time, overshoot, steady-state, RMS/peak tracking error, on-frame %). Lets us tune thousands of steps in ms.
+- **`sim.py`** — CLI tuner: run scenarios, print metrics, save matplotlib response plots to `runs/` (gitignored).
+- **Bug found & fixed in sim:** elevation feedback ran away (step/sine diverged, ramp fine) — a mount-axis **sign inversion**: sim models tilt+ = camera-up while the controller default assumes tilt+ = down. Set `tilt_sign=-1` for the sim convention. This is exactly the bench bug `tilt_sign` exists to absorb; the asymmetry (ramp ok, step/sine broken) was the tell.
+- **Tuning insight:** plant is an integrator (velocity→angle) ⇒ **P alone gives zero steady-state error to a step**, so high Ki was *hurting* moving-target tracking. Dropped Ki 28→8. Final **Kp=200, Ki=8, Kd=14**: step settle 0.67s, ~1% overshoot, 0.16deg steady; sine 4.6deg RMS; ramp 3.0deg RMS; all 100% on-frame.
+- **Single source of truth:** `controller.default_pan_tilt()` factory holds the tuned gains; both `sim.py` and the live `pipeline.py` use it. Pipeline now runs the controller live and shows commanded `pan`/`tilt` on the HUD — connects M1↔M2 visually.
+- **Tests:** 22 green (10 tracker + 12 controller incl. PID terms, anti-windup, slew/travel limits, lost-target hold, closed-loop convergence, factory gains).
+- **Not done here:** servos (M3 — needs hardware ordered). Live webcam eyeball still pending on Mike's machine.
+
 ## 2026-06-23 — M1 built & verified | perception + targeting loop working end-to-end | next: live webcam run + M2 PID
 - **Repo structure** (house style: `requirements.txt` + `src/` pkg + `main.py` + `tests/`):
   - `src/aegis/tracker.py` — headless target-selection + aim-error maths, **zero heavy deps** so it's unit-tested and reusable by M2's PID.

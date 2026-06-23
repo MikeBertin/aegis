@@ -1,11 +1,11 @@
 # STATUS — Project AEGIS
 
 State: 🟢 ACTIVE
-Phase: 3 — BUILD (M1)
-Last action: 2026-06-23 — M1 built & verified: full stack installed (torch 2.12.1 / ultralytics 8.4.75 / cv2 4.13), end-to-end inference confirmed on real image (1 bus + 4 people → locked target conf 0.88 → aim_error computed); 10 headless tests green
-Next action: Run `python main.py` on YOUR machine with a webcam to watch the live crosshair lock/track (needs a physical camera + display — can't be driven headlessly)
-Blocked by: Nothing
-Next milestone: M1 — software targeting loop (target date TBD)
+Phase: 3 — BUILD (M2)
+Last action: 2026-06-23 — M2 control loop built & tuned in simulation. PID + PanTiltController + closed-loop simulator; gains Kp=200/Ki=8/Kd=14 (step 0.67s/1% overshoot, sine 4.6deg RMS, 100% on-frame). Controller wired into live pipeline HUD. 22 headless tests green.
+Next action: Run `python main.py` (live tracking + commanded servo angles on HUD) and `python sim.py --plot` (response curves) on YOUR machine to eyeball both. Then M3: order the gimbal/servos and drive real pan/tilt from the controller.
+Blocked by: Nothing (M3 servo work needs hardware ordered — see HARDWARE-BUDGET.md)
+Next milestone: M3 — physical pan/tilt rig tracking with laser (no projectile)
 Outcome: —
 
 > *Update MEMORY.md when significant milestones are reached or the project closes.*

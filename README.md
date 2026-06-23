@@ -20,8 +20,8 @@ The deeper point: the perception-to-actuation loop is the foundation of every ph
 ## Milestones
 | # | Milestone | Proves | Target |
 |---|-----------|--------|--------|
-| M1 | Webcam + Jetson/laptop + pretrained YOLO → on-screen crosshair tracks target | Perception + targeting loop (£0 hardware) | TBD |
-| M2 | Pan/tilt rig + servos track target with laser pointer (no projectile) | PID control loop, physical | TBD |
+| M1 | ✅ Webcam + Jetson/laptop + pretrained YOLO → on-screen crosshair tracks target | Perception + targeting loop (£0 hardware) | Done 2026-06-23 |
+| M2 | ◑ PID control loop tuned in simulation (servos pending hardware) | Control loop, validated in-sim | Sim done 2026-06-23 |
 | M3 | Nerf flywheel gun + servo trigger + full safety gating | Actuation + safety architecture | TBD |
 | M4 | Custom-trained detector, TensorRT-optimised, deployed on Jetson | Dataset → train → edge-deploy pipeline | TBD |
 
@@ -46,20 +46,45 @@ pytest                                   # headless targeting-maths tests
 ```
 On first run, Ultralytics auto-downloads the `yolo11n.pt` weights. Press `q`/`Esc` to quit.
 
+## M2 — control loop (simulated)
+The PID controller (`controller.py`) consumes the M1 `aim_error` and outputs
+pan/tilt servo commands. It's tuned and validated against a closed-loop
+simulator (`simulator.py`) — no servos needed yet:
+```bash
+python sim.py            # run step/sine/ramp scenarios, print metrics
+python sim.py --plot     # also save response plots to runs/
+python sim.py --kp 220 --ki 10 --kd 16   # try your own gains
+```
+**Tuned performance** (Kp=200, Ki=8, Kd=14): 20° step acquired in **0.67 s**,
+~1% overshoot, 0.16° steady-state; moving-target tracking 4.6° RMS (sine) /
+3.0° RMS (ramp); 100% on-frame. The live pipeline already runs this controller
+and shows the commanded `pan`/`tilt` on the HUD — those are the exact angles M3
+will send to the servos.
+
+> Design note: the plant is an integrator (velocity→angle), so P alone gives
+> zero steady-state error to a step; Ki is kept small (rejects tilt gravity-sag)
+> and Kd damps the acquisition overshoot. `tilt_sign` absorbs the mount-axis
+> inversion you hit on the real bench.
+
 ## Repo Layout
 ```
 aegis/
-├── main.py                  # CLI entry — builds Config, runs the loop
+├── main.py                  # CLI: live target tracking (M1) + live controller (M2)
+├── sim.py                   # CLI: M2 control simulator & PID tuner
 ├── requirements.txt
 ├── src/aegis/
 │   ├── config.py            # runtime Config dataclass
-│   ├── tracker.py           # target selection + aim-error maths (no torch/cv2 — unit-tested)
+│   ├── tracker.py           # target selection + aim-error maths (no torch/cv2 — tested)
+│   ├── controller.py        # PID + PanTiltController + tuned factory (no heavy deps — tested)
+│   ├── simulator.py         # closed-loop camera/target model + tracking metrics
 │   ├── detector.py          # Ultralytics YOLO -> Detection adapter (lazy torch import)
 │   ├── overlay.py           # cv2 HUD: crosshair, lock box, error line
-│   └── pipeline.py          # the M1 camera->detect->select->error->draw loop
-└── tests/test_tracker.py    # pure-logic tests, no heavy deps
+│   └── pipeline.py          # camera->detect->select->aim_error->controller->draw loop
+└── tests/                   # test_tracker.py + test_controller.py (pure-logic, no heavy deps)
 ```
-The architecture is deliberately split so the **targeting maths is headless and testable**, and `pipeline.py`'s per-frame `aim_error(...)` is the exact signal M2's PID controller will turn into pan/tilt servo commands.
+The architecture is deliberately split so the **targeting and control maths are
+headless and testable**, and the same `controller.py` runs unchanged in the
+simulator, the live pipeline, and (M3) on the Jetson driving real servos.
 
 ## Key Files
 | File | Purpose |
