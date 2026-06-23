@@ -1,0 +1,8 @@
+# AEGIS runtime deps (M1: perception + tracking)
+# Target: Python 3.13 (broadest wheel support for torch/ultralytics/opencv).
+ultralytics>=8.3.0   # YOLOv11 + training/export tooling; pulls in torch
+opencv-python>=4.10  # camera capture + HUD rendering
+numpy>=1.26
+
+# Dev / test
+pytest>=8.0

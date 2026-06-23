@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Model weights (downloaded / trained — keep out of git)
+*.pt
+*.onnx
+*.engine
+models/*.pt
+models/*.onnx
+models/*.engine
+
+# Datasets & runs (M4)
+datasets/
+runs/
+
+# OS
+.DS_Store
