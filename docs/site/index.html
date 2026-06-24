@@ -43,6 +43,11 @@
   footer{text-align:center;color:var(--muted);font-size:12px;padding:24px}
   .badge{font-family:monospace;font-size:11px;color:var(--accent);border:1px solid var(--accent);
     border-radius:20px;padding:2px 10px}
+  .evonav{display:flex;gap:10px;justify-content:center;align-items:center;
+    padding:12px;border-bottom:1px solid var(--border);background:var(--panel);font-size:13px;flex-wrap:wrap}
+  .evonav span{color:var(--muted)}
+  .evonav a{color:var(--blue);text-decoration:none;border:1px solid var(--border);border-radius:16px;padding:4px 12px}
+  .evonav a.active{color:var(--bg);background:var(--accent);border-color:var(--accent);font-weight:600}
 </style>
 </head>
 <body>
@@ -59,6 +64,11 @@
   <h1>🛡️ AEGIS — interactive demo</h1>
   <p>The actual turret control &amp; safety code, running live via Pyodide &nbsp;<span class="badge">real Python</span></p>
 </header>
+<div class="evonav">
+  <span>project evolution:</span>
+  <a href="index.html" class="active">① Control &amp; Safety (M1–M2.5)</a>
+  <a href="firecontrol.html">② Stereo Fire-Control (M2.6)</a>
+</div>
 
 <div class="wrap">
 
@@ -122,8 +132,8 @@
   </footer>
 </div>
 
-<script src="aegis_modules.js?v=2"></script>
+<script src="aegis_modules.js?v=3"></script>
 <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
-<script src="demo.js?v=2"></script>
+<script src="demo.js?v=3"></script>
 </body>
 </html>

@@ -6,6 +6,16 @@ Decisions, progress notes, session diary. Most recent first.
 
 ---
 
+## 2026-06-24 — M2.6 stereo ranging + ballistic fire-control | computed lead from range + dart speed + gravity | 2nd demo for project evolution
+- **Why:** Mike asked about computing lead from known muzzle velocity + range (vs the fixed lead_time slider). Chose stereo for range (BOM updated); the engineering payoff is the real fire-control solver.
+- **`stereo.py`** — `StereoRig`: `depth = focal·baseline/disparity`, inverse, `depth_error` (∝ range² — sharp near, vague far), pixel→camera back-projection. Pure, tested.
+- **`ballistics.py`** — the moving-interceptor solver. `intercept_time` seeds with the closed-form no-gravity quadratic then iterates with gravity (implicit: TOF depends on intercept range depends on TOF). `firing_solution` → aim az/el, lead, gravity hold-over, intercept point. `simulate_shot` flies the dart to **prove** hits. Frame (x:right, y:up, z:forward).
+- **Validated:** at 3m, target crossing 4m/s, 20m/s dart, gravity → solution HIT (lead ~13°, holdover ~1.6°, closest 13cm) vs naive aim MISS (68cm). Stereo: 16px disparity at 3m, range error ±9cm@3m vs ±38cm@6m.
+- **Second demo (project evolution):** `docs/site/firecontrol.html` + `firecontrol.js` (Pyodide running ballistics.py + stereo.py): stereo-ranging panel (disparity→depth + error growth) + fire-control solver (top-down lead + side-on gravity arc, animated solution vs naive darts, HIT/MISS verdict). **Existing demo left intact**; both linked by an `.evonav` bar (① Control & Safety, ② Stereo Fire-Control). Verified in preview browser (no console errors; solution HITs, naive MISSes across ranges/speeds). Bundle now 9 modules; cache-bust bumped to ?v=3.
+- **GIF:** `firecontrol.gif` — top-down solution-hits-vs-naive-misses.
+- **Honest caveats (in discussion + docs):** foam-dart drag makes constant-velocity optimistic; monocular known-size ranging needs no extra HW and can beat stereo at range; real Nerf spread caps physical precision — value is the solver + sim validation.
+- **Tests:** 72 green (+10: stereo round-trip/error-growth/back-projection, ballistics stationary/moving-hits-naive-misses/gravity-holdover/unreachable).
+
 ## 2026-06-24 — M2.5 predictive tracking: feedforward + lead | crosshair no longer lags / now leads | verified in demo
 - **Why:** the demo crosshair visibly lagged the moving target — fundamental to pure feedback (PID needs a position error to generate keep-up velocity). Feedback can't lead; feedforward can.
 - **`estimator.py`** — α-β filter (fixed-gain constant-velocity tracker): smoothed position + velocity in one recursive step, critically-damped β from α. `TargetEstimator` runs one per axis. Default α=0.7 (responsiveness vs noise tolerance). Pure, tested.

@@ -11,6 +11,7 @@ Run: python tools/make_gifs.py
 
 from __future__ import annotations
 
+import math
 import os
 import sys
 
@@ -28,6 +29,7 @@ from aegis.estimator import TargetEstimator  # noqa: E402
 from aegis.safety import SafetyGate  # noqa: E402
 from aegis.tracker import Detection, aim_error  # noqa: E402
 from aegis.tracking import TargetTracker  # noqa: E402
+from aegis import ballistics as bal  # noqa: E402
 
 OUT = "docs/media"
 BG = "#0d1117"
@@ -220,6 +222,64 @@ def gif_feedforward() -> None:
     print("  wrote feedforward.gif")
 
 
+def _shot_traj(az, el, speed, rng, gravity, dt=0.004):
+    a, e = math.radians(az), math.radians(el)
+    d = (math.sin(a) * math.cos(e), math.sin(e), math.cos(a) * math.cos(e))
+    pos = [0.0, 0.0, 0.0]
+    vel = [d[0] * speed, d[1] * speed, d[2] * speed]
+    pts, t = [], 0.0
+    while t < 1.5 and pos[2] < rng + 0.4:
+        pts.append((pos[0], pos[2]))  # (lateral, forward) for top-down
+        pos = [pos[0] + vel[0] * dt, pos[1] + vel[1] * dt, pos[2] + vel[2] * dt]
+        if gravity:
+            vel[1] -= bal.G * dt
+        t += dt
+    return pts
+
+
+def gif_firecontrol() -> None:
+    """Top-down: fire-control solution intercepts a crossing target; naive misses."""
+    import math as _m
+    rng, vlat, speed = 3.0, 4.0, 20.0
+    p, v = (0.0, 0.0, rng), (vlat, 0.0, 0.0)
+    sol = bal.firing_solution(p, v, speed, gravity=True)
+    el0 = _m.degrees(_m.atan2(p[1], _m.hypot(p[0], p[2])))
+    sol_pts = _shot_traj(sol.aim_az, sol.aim_el, speed, rng, True)
+    naive_pts = _shot_traj(0.0, el0, speed, rng, True)
+    n = max(len(sol_pts), len(naive_pts))
+
+    fig, ax = plt.subplots(figsize=(4.4, 3.4), dpi=100)
+    fig.patch.set_facecolor(BG)
+    _style(ax)
+    ax.set_title("M2.6 · fire-control: lead + gravity → HIT", fontsize=9.5)
+    ax.set_xlabel("lateral (m)")
+    ax.set_ylabel("range (m)")
+    ax.set_xlim(-1.4, 1.8)
+    ax.set_ylim(0, rng + 0.4)
+    ax.plot(0, 0, "s", color="#76b900", ms=9)  # turret
+    ax.plot(sol.intercept[0], sol.intercept[2], "o", mfc="none", mec=AMBER, ms=13, mew=1.5)
+    ax.text(sol.intercept[0] + 0.08, sol.intercept[2], "intercept", color=AMBER, fontsize=8)
+
+    (tgt,) = ax.plot([], [], "o", color=RED, ms=12)
+    (sdart,) = ax.plot([], [], "o", color=GREEN, ms=6)
+    (ndart,) = ax.plot([], [], "o", color=GREY, ms=6)
+    ax.text(-1.32, rng + 0.05, "● solution (leads+holds)", color=GREEN, fontsize=8)
+    ax.text(-1.32, rng - 0.2, "● naive aim-at-target", color=GREY, fontsize=8)
+
+    def frame(i):
+        tgt.set_data([vlat * (i * 0.004)], [rng])
+        s = sol_pts[min(i, len(sol_pts) - 1)]
+        nn = naive_pts[min(i, len(naive_pts) - 1)]
+        sdart.set_data([s[0]], [s[1]]); ndart.set_data([nn[0]], [nn[1]])
+        return tgt, sdart, ndart
+
+    anim = FuncAnimation(fig, frame, frames=n + 12, interval=1000 / FPS, blit=True)
+    fig.tight_layout()
+    anim.save(f"{OUT}/firecontrol.gif", writer=PillowWriter(fps=FPS))
+    plt.close(fig)
+    print("  wrote firecontrol.gif")
+
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     print("Generating README GIFs from the real sim/controller/safety code...")
@@ -227,4 +287,5 @@ if __name__ == "__main__":
     gif_turret_track()
     gif_safety_gate()
     gif_feedforward()
+    gif_firecontrol()
     print("Done -> docs/media/")

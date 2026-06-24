@@ -20,6 +20,7 @@ SRC = "src/aegis"
 MODULES = [
     "tracker.py", "controller.py", "estimator.py",
     "tracking.py", "simulator.py", "safety.py",
+    "stereo.py", "ballistics.py",
 ]
 OUT = "docs/site/aegis_modules.js"
 

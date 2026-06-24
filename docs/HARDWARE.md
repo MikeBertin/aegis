@@ -32,6 +32,21 @@ Mostly compute/time, not parts. The Jetson trains/quantises; optional extras:
 | Foam balls / balloons + simple target rig | 10 | Fireable targets to collect a dataset of. |
 | (Optional) USB SSD for dataset/runs | 30 | If 256GB fills with training data. |
 
+## Optional — stereo ranging (M2.6)
+For *metric range* to the target (which feeds the ballistic fire-control solver:
+time-of-flight, lead and gravity hold-over), add depth sensing. Monocular
+known-size ranging needs **no** extra hardware; stereo is the more general route.
+
+| Item | ~£ | Notes |
+|------|----|-------|
+| Pre-built USB stereo module (dual synced sensor) | 50–80 | **Recommended** — one USB cable, factory-calibrated baseline, hardware-synced (essential for moving targets). Works on Jetson and Pi. |
+| — or — OAK-D Lite (stereo depth + onboard AI) | 90–150 | Gives depth *and* offloads the CNN from the Jetson. |
+| — or — 2× Pi Camera + Pi 5 dual CSI | 50 | Cheapest, but **not hardware-synced** → poor depth on moving targets. Avoid for a turret. |
+
+Calibration (intrinsics + extrinsics + rectification) is a one-time step; the
+disparity→depth geometry is in `src/aegis/stereo.py`. Note depth error grows
+with the **square** of range — keep the firing envelope short.
+
 ## Wiring summary (matches `src/aegis/hardware/`)
 ```
 Jetson Orin Nano
