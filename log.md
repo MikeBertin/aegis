@@ -6,6 +6,12 @@ Decisions, progress notes, session diary. Most recent first.
 
 ---
 
+## 2026-06-24 — M2.6 extended: dart drag + fire-control wired into tracking | both verified
+- **Drag model** (`ballistics.DartModel`): quadratic drag, speed decays `v=v0·e^(-k·s)`, so `time_of_flight(L)=(e^(kL)-1)/(k·v0)` instead of L/v0. `firing_solution`/`intercept_time`/`simulate_shot` now accept a muzzle speed OR a DartModel (back-compat). Drag → longer TOF → more lead AND more hold-over. Verified: 5m crossing, k=0.07 → 20m/s decays to 14.1m/s, tof 253→307ms, lead 8.6→10.4°, hold 3.6→5.2°, still HIT. Honest limit: the decoupled closed-form approx misses at extreme drag (k=0.15 → 16cm vs 14cm radius) — documented; a full numerical solver would close it.
+- **Wired into tracking** (`tracking.FireControlTracker` + `estimator.Estimator3D`): bearing (aim_error+turret pose) + stereo range → 3D target position → 3-axis α-β → firing_solution → command the controller toward the solution aim (lead+holdover) with feedforward on the aim's angular velocity. Proven end-to-end: after settling, a dart fired from the commanded (pan,tilt) HITs the moving target *with gravity and drag*; also tests for leads-crossing-target and holds-over-for-gravity.
+- **Demo:** added a dart-drag slider to firecontrol.html (+ speed-at-range readout). Verified in preview browser (no console errors; drag grows tof/lead/holdover live; HIT vs naive MISS). Cache-bust ?v=4, bundle rebuilt (still 9 modules).
+- **Tests:** 78 green (+6: 3 drag in test_ballistics, 3 fire-control tracking in test_firecontrol).
+
 ## 2026-06-24 — M2.6 stereo ranging + ballistic fire-control | computed lead from range + dart speed + gravity | 2nd demo for project evolution
 - **Why:** Mike asked about computing lead from known muzzle velocity + range (vs the fixed lead_time slider). Chose stereo for range (BOM updated); the engineering payoff is the real fire-control solver.
 - **`stereo.py`** — `StereoRig`: `depth = focal·baseline/disparity`, inverse, `depth_error` (∝ range² — sharp near, vague far), pixel→camera back-projection. Pure, tested.

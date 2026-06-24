@@ -78,3 +78,29 @@ class TargetEstimator:
         ax, av = self.az.update(az, dt)
         ex, ev = self.el.update(el, dt)
         return (ax, ex), (av, ev)
+
+
+class Estimator3D:
+    """Three α-β trackers — one per axis — for a 3D point (x, y, z).
+
+    Used by fire-control: stereo range + bearing gives the target's 3D
+    position each frame; this smooths it into position + velocity for the
+    ballistic intercept solver.
+    """
+
+    def __init__(self, alpha: float = 0.7) -> None:
+        self.x = AlphaBeta.critically_damped(alpha)
+        self.y = AlphaBeta.critically_damped(alpha)
+        self.z = AlphaBeta.critically_damped(alpha)
+
+    def reset(self) -> None:
+        for f in (self.x, self.y, self.z):
+            f.reset()
+
+    def update(
+        self, p: tuple[float, float, float], dt: float
+    ) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+        px, vx = self.x.update(p[0], dt)
+        py, vy = self.y.update(p[1], dt)
+        pz, vz = self.z.update(p[2], dt)
+        return (px, py, pz), (vx, vy, vz)

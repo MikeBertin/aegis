@@ -20,11 +20,13 @@ Pure Python — same code in the simulator, the live pipeline, and the Jetson.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Optional
 
+from .ballistics import FireSolution, firing_solution
 from .controller import PanTiltController
-from .estimator import TargetEstimator
+from .estimator import Estimator3D, TargetEstimator
 
 
 @dataclass
@@ -94,3 +96,92 @@ class TargetTracker:
             target_az=az_s, target_el=el_s, vel_az=az_v, vel_el=el_v,
             lead_az=lead_az, lead_el=lead_el, has_target=True,
         )
+
+
+@dataclass
+class FireControlOutput:
+    pan: float
+    tilt: float
+    solution: Optional[FireSolution] = None
+    target_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    target_vel: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    has_target: bool = False
+
+
+def _angles_to_unit(az_deg: float, el_deg: float) -> tuple[float, float, float]:
+    """Bearing (deg) -> unit direction in the turret frame (x right, y up, z fwd)."""
+    a, e = math.radians(az_deg), math.radians(el_deg)
+    return (math.sin(a) * math.cos(e), math.sin(e), math.cos(a) * math.cos(e))
+
+
+class FireControlTracker:
+    """Full chain: bearing + stereo range -> 3D target state -> ballistic firing
+    solution -> servo command. Unlike :class:`TargetTracker` (which uses a fixed
+    lead time), the lead and gravity hold-over here are *computed* from the
+    target's range, the dart's speed/drag and gravity.
+    """
+
+    def __init__(
+        self,
+        controller: PanTiltController,
+        dart,                                   # muzzle speed or DartModel
+        estimator: Optional[Estimator3D] = None,
+        hfov: float = 60.0,
+        vfov: float = 37.0,
+        gravity: bool = True,
+        ff_gain: float = 1.0,
+    ) -> None:
+        self.c = controller
+        self.dart = dart
+        self.est = estimator or Estimator3D()
+        self.hfov = hfov
+        self.vfov = vfov
+        self.gravity = gravity
+        self.ff_gain = ff_gain
+        self._last_aim: Optional[tuple[float, float]] = None
+
+    def reset(self) -> None:
+        self.est.reset()
+        self._last_aim = None
+
+    def step(
+        self,
+        aim_error: Optional[tuple[float, float]],
+        range_m: Optional[float],
+        dt: float,
+    ) -> FireControlOutput:
+        pan, tilt = self.c.pan, self.c.tilt
+        if aim_error is None or range_m is None:
+            self.c.update(None, dt)
+            self.reset()
+            return FireControlOutput(self.c.pan, self.c.tilt, has_target=False)
+
+        ex, ey = aim_error
+        # 1. Absolute target bearing, then 3D position from bearing + range.
+        az = pan + ex * (self.hfov / 2.0)
+        el = tilt - ey * (self.vfov / 2.0)
+        p_meas = tuple(c * range_m for c in _angles_to_unit(az, el))
+
+        # 2. Smooth -> 3D position + velocity.
+        p, v = self.est.update(p_meas, dt)
+
+        # 3. Ballistic firing solution (computed lead + gravity hold-over).
+        sol = firing_solution(p, v, self.dart, self.gravity)
+        if not sol.ok:
+            self.c.update((ex, ey), dt)  # fall back to centring on the target
+            return FireControlOutput(self.c.pan, self.c.tilt, sol, p, v, True)
+
+        # 4. Drive the turret toward the firing solution, with feedforward on the
+        #    aim point's angular velocity (finite-difference of the solution).
+        ff = (0.0, 0.0)
+        if self._last_aim is not None:
+            ff = (
+                self.ff_gain * (sol.aim_az - self._last_aim[0]) / dt,
+                self.ff_gain * (sol.aim_el - self._last_aim[1]) / dt,
+            )
+        self._last_aim = (sol.aim_az, sol.aim_el)
+
+        err = ((sol.aim_az - pan) / (self.hfov / 2.0),
+               (tilt - sol.aim_el) / (self.vfov / 2.0))
+        self.c.update(err, dt, feedforward=ff)
+        return FireControlOutput(self.c.pan, self.c.tilt, sol, p, v, True)

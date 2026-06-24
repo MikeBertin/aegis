@@ -9,33 +9,38 @@ const COL = {
 const PY_DRIVER = `
 import sys, json, math
 sys.path.insert(0, "/home/pyodide")
-from aegis.ballistics import firing_solution, simulate_shot, G
+from aegis.ballistics import DartModel, firing_solution, simulate_shot, G
 from aegis.stereo import StereoRig
 
 _rig = StereoRig(focal_px=800.0, baseline_m=0.06, cx=320.0, cy=240.0)
 
-def _traj(az, el, speed, rng, gravity):
+def _traj(az, el, dart, rng, gravity):
     a, e = math.radians(az), math.radians(el)
     d = (math.sin(a)*math.cos(e), math.sin(e), math.cos(a)*math.cos(e))
     pos = [0.0, 0.0, 0.0]
-    vel = [d[0]*speed, d[1]*speed, d[2]*speed]
+    vel = [d[0]*dart.muzzle_speed, d[1]*dart.muzzle_speed, d[2]*dart.muzzle_speed]
     pts, t, dt = [], 0.0, 0.005
-    while t < 2.0 and pos[2] < rng + 0.4 and pos[1] > -3.0:
+    while t < 2.5 and pos[2] < rng + 0.4 and pos[1] > -3.0:
         pts.append([pos[0], pos[1], pos[2]])
+        sp = math.sqrt(vel[0]**2+vel[1]**2+vel[2]**2)
+        ax = -dart.drag_k*sp*vel[0]
+        ay = (-G if gravity else 0.0) - dart.drag_k*sp*vel[1]
+        az_ = -dart.drag_k*sp*vel[2]
         pos = [pos[0]+vel[0]*dt, pos[1]+vel[1]*dt, pos[2]+vel[2]*dt]
-        if gravity: vel[1] -= G*dt
+        vel = [vel[0]+ax*dt, vel[1]+ay*dt, vel[2]+az_*dt]
         t += dt
     return pts
 
-def solve(rng, vlat, speed, gravity):
+def solve(rng, vlat, speed, gravity, drag_k):
+    dart = DartModel(float(speed), float(drag_k))
     p = (0.0, 0.0, float(rng))          # target at turret height, straight ahead
     v = (float(vlat), 0.0, 0.0)         # crossing right
-    sol = firing_solution(p, v, speed, gravity)
+    sol = firing_solution(p, v, dart, gravity)
     el0 = math.degrees(math.atan2(p[1], math.hypot(p[0], p[2])))  # straight-at-target elevation
-    sol_pts = _traj(sol.aim_az, sol.aim_el, speed, rng, gravity) if sol.ok else []
-    naive_pts = _traj(0.0, el0, speed, rng, gravity)
-    hit, ht, hclose = simulate_shot(sol.aim_az, sol.aim_el, speed, p, v, gravity) if sol.ok else (False, 0, 9)
-    nhit, nt, nclose = simulate_shot(0.0, el0, speed, p, v, gravity)
+    sol_pts = _traj(sol.aim_az, sol.aim_el, dart, rng, gravity) if sol.ok else []
+    naive_pts = _traj(0.0, el0, dart, rng, gravity)
+    hit, ht, hclose = simulate_shot(sol.aim_az, sol.aim_el, dart, p, v, gravity) if sol.ok else (False, 0, 9)
+    nhit, nt, nclose = simulate_shot(0.0, el0, dart, p, v, gravity)
     return json.dumps({
         "ok": sol.ok, "tof": sol.tof, "lead": round(sol.lead_deg, 1),
         "holdover": round(sol.holdover_deg, 1),
@@ -44,6 +49,7 @@ def solve(rng, vlat, speed, gravity):
         "naive_hit": nhit, "naive_cm": round(nclose*100),
         "sol_pts": sol_pts, "naive_pts": naive_pts,
         "rng": rng, "vlat": vlat, "speed": speed, "gravity": gravity,
+        "drag_k": drag_k, "speed_at": round(dart.speed_at(rng), 1),
         "disparity": round(_rig.disparity(rng), 1),
         "err3": round(_rig.depth_error(3.0)*100), "err6": round(_rig.depth_error(6.0)*100),
         "err_here": round(_rig.depth_error(rng)*100),
@@ -77,11 +83,11 @@ function fit(canvas) {
 let state = { data:null, frame:0 };
 
 function init() {
-  ["speed","range","vlat"].forEach(id => {
+  const units = { speed:" m/s", range:" m", vlat:" m/s", drag:" /m" };
+  ["speed","range","vlat","drag"].forEach(id => {
     const el = document.getElementById(id), out = document.getElementById(id + "O");
-    const unit = id === "speed" ? " m/s" : id === "range" ? " m" : " m/s";
-    const sync = () => { out.value = el.value + unit; recompute(); };
-    el.addEventListener("input", sync); out.value = el.value + unit;
+    const sync = () => { out.value = el.value + units[id]; recompute(); };
+    el.addEventListener("input", sync); out.value = el.value + units[id];
   });
   document.getElementById("gravity").addEventListener("change", recompute);
   recompute();
@@ -92,12 +98,17 @@ function recompute() {
   const speed = +document.getElementById("speed").value;
   const rng = +document.getElementById("range").value;
   const vlat = +document.getElementById("vlat").value;
+  const drag = +document.getElementById("drag").value;
   const gravity = document.getElementById("gravity").checked;
-  state.data = JSON.parse(solve(rng, vlat, speed, gravity));
+  state.data = JSON.parse(solve(rng, vlat, speed, gravity, drag));
   state.frame = 0;
   drawStereo();
   drawSide();
   updateVerdict();
+  const note = document.getElementById("dragNote");
+  if (note) note.textContent = drag > 0
+    ? `drag: ${speed} m/s muzzle → ${state.data.speed_at} m/s at ${rng} m`
+    : "no drag (ideal constant-speed dart)";
 }
 
 function updateVerdict() {

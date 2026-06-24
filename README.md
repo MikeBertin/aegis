@@ -3,7 +3,7 @@
 > *A computer-vision turret that tracks anything and fires only on inanimate targets — with the safety architecture as a first-class, testable feature, not an afterthought.*
 
 ![milestones](https://img.shields.io/badge/software-M1--M4_complete-3fb950)
-![tests](https://img.shields.io/badge/tests-72_passing-3fb950)
+![tests](https://img.shields.io/badge/tests-78_passing-3fb950)
 ![python](https://img.shields.io/badge/python-3.13-3776ab)
 ![model](https://img.shields.io/badge/detector-YOLOv11-blue)
 ![edge](https://img.shields.io/badge/edge-Jetson_Orin_Nano-76b900)
@@ -59,7 +59,7 @@ Each frame: the detector finds objects → the tracker picks one and computes a 
 
 **Predictive tracking (M2.5).** Pure feedback always trails a moving target — it needs a position error to generate the velocity to keep up. `tracking.py` removes that lag the way a gun director does: an **α-β filter** (`estimator.py`) smooths the target's position and velocity; the velocity is fed *forward* straight to the servos (the PID only trims the residual), and the aim is **led** ahead by the dart's flight-time so a moving target can actually be hit. In sim this cuts steady-state tracking lag by **~68%** (5.8° → 1.9° RMS), and on a constant-velocity target the aim leads by exactly `velocity × lead_time`.
 
-**Stereo ranging + fire-control (M2.6).** A fixed lead time is a guess; the physical version computes it. `stereo.py` recovers **range** from a calibrated stereo pair (`Z = focal·baseline / disparity`, with range error growing as the *square* of distance). `ballistics.py` then solves the real fire-control problem: given range, dart muzzle speed and target velocity, find the launch direction and time-of-flight where dart and target **meet** — leading horizontally *and* aiming above to beat gravity drop (the classic implicit moving-interceptor problem, solved by iteration). It's validated by a hit/miss shot simulation: the solution connects where naive aim-at-target misses by tens of centimetres.
+**Stereo ranging + fire-control (M2.6).** A fixed lead time is a guess; the physical version computes it. `stereo.py` recovers **range** from a calibrated stereo pair (`Z = focal·baseline / disparity`, with range error growing as the *square* of distance). `ballistics.py` then solves the real fire-control problem: given range, dart muzzle speed and target velocity, find the launch direction and time-of-flight where dart and target **meet** — leading horizontally *and* aiming above to beat gravity drop (the classic implicit moving-interceptor problem, solved by iteration). A **drag model** (`DartModel`) captures the foam dart's deceleration (`v = v₀·e^(-k·s)`), which stretches the flight time and so *increases* both the lead and the hold-over. The whole chain is wired into the live loop by `FireControlTracker` — bearing + stereo range → 3D target state → firing solution → servo command — and validated by a hit/miss shot simulation: the turret aims so a dart *with gravity and drag* hits the moving target where naive aim-at-target misses by tens of centimetres.
 
 ## Safety model — *enforced in code, not just documented*
 
@@ -87,7 +87,7 @@ People and animals are on a **hard denylist that overrides everything** — they
 | **M1** | Perception + targeting loop (YOLOv11 → aim error) | ✅ done |
 | **M2** | PID pan/tilt control, tuned in closed-loop simulation | ✅ done (sim) |
 | **M2.5** | Predictive tracking — α-β velocity feedforward + target lead | ✅ done (sim) |
-| **M2.6** | Stereo ranging + ballistic fire-control (intercept + gravity) | ✅ done (sim) |
+| **M2.6** | Stereo ranging + ballistic fire-control (intercept + gravity + drag, wired into tracking) | ✅ done (sim) |
 | **M3** | Actuation layer + safety gate (mock-tested; real drivers stubbed) | ✅ software done · ⏳ hardware |
 | **M4** | Custom detector: dataset → train → ONNX/TensorRT export | ✅ pipeline done · ⏳ real data |
 
@@ -105,7 +105,7 @@ python main.py                            # M1+M2: live tracking + commanded ser
 python main.py --classes "sports ball" --turret mock   # M3: full safety + fire loop, no hardware
 python sim.py --plot                      # M2: tune the PID, save response plots
 python train.py --synthetic 16 --epochs 1 --device cpu # M4: smoke-test the training pipeline
-pytest                                     # 72 headless tests, no GPU needed
+pytest                                     # 78 headless tests, no GPU needed
 ```
 In the live window: `a` arm/disarm · `f` fire (only if the gate says CLEAR) · `q` quit.
 
@@ -117,7 +117,7 @@ cd docs/site && python -m http.server 8000   # then open http://localhost:8000
 ```
 Two demos, linked by an **evolution** nav so you can see the project grow:
 - **① Control & Safety** (`index.html`) — a **PID tuner** (live response + animated turret viz, with a feedforward toggle and lead-time slider) and the **safety-gate playground** (drag a person near the target → the gate flips CLEAR/BLOCKED live).
-- **② Stereo Fire-Control** (`firecontrol.html`) — **stereo ranging** (disparity → depth, with its quadratic error growth) and the **ballistic solver** (top-down lead + side-on gravity arc; the solution dart hits, naive misses).
+- **② Stereo Fire-Control** (`firecontrol.html`) — **stereo ranging** (disparity → depth, with its quadratic error growth) and the **ballistic solver** (top-down lead + side-on gravity arc; muzzle-velocity, range, target-speed and **dart-drag** sliders; the solution dart hits, naive misses).
 
 (To publish as live URLs, make the repo public and enable GitHub Pages on `docs/site`.)
 
@@ -137,16 +137,16 @@ aegis/
 │   ├── tracker.py           # target select + aim-error maths (pure — tested)
 │   ├── controller.py        # PID + PanTiltController + tuned factory (pure — tested)
 │   ├── estimator.py         # α-β velocity filter (pure — tested)
-│   ├── tracking.py          # M2.5 feedforward + lead orchestrator (pure — tested)
+│   ├── tracking.py          # M2.5 feedforward+lead + M2.6 FireControlTracker (pure — tested)
 │   ├── stereo.py            # M2.6 stereo range from disparity (pure — tested)
-│   ├── ballistics.py        # M2.6 intercept + gravity fire-control solver (pure — tested)
+│   ├── ballistics.py        # M2.6 intercept + gravity + drag fire-control solver (pure — tested)
 │   ├── simulator.py         # closed-loop camera/target model + tracking metrics
 │   ├── safety.py            # SafetyGate fire-authorisation logic (pure — tested)
 │   ├── turret.py            # M3 integration: controller + servos + trigger + gate
 │   ├── config.py detector.py overlay.py pipeline.py   # config, YOLO adapter, HUD, loop
 │   ├── hardware/            # driver ABCs + servo mapping, mocks, PCA9685/Nerf (lazy)
 │   └── data/                # M4: YOLO label/split/data.yaml (pure), builder, synth
-└── tests/                   # tracker, controller, safety, hardware, dataset — 72 pure tests
+└── tests/                   # tracker, controller, safety, hardware, dataset — 78 pure tests
 ```
 
 ## Design notes

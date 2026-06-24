@@ -100,8 +100,10 @@
       <label>muzzle v</label><input id="speed" type="range" min="10" max="30" step="1" value="20"><output id="speedO"></output>
       <label>range</label><input id="range" type="range" min="1.5" max="6" step="0.1" value="3"><output id="rangeO"></output>
       <label>target speed</label><input id="vlat" type="range" min="0" max="6" step="0.25" value="3"><output id="vlatO"></output>
+      <label>dart drag</label><input id="drag" type="range" min="0" max="0.15" step="0.01" value="0.07"><output id="dragO"></output>
     </div>
-    <div class="chkline"><label><input type="checkbox" id="gravity" checked> gravity (dart drop)</label></div>
+    <div class="chkline"><label><input type="checkbox" id="gravity" checked> gravity (dart drop)</label>
+      &nbsp;&nbsp;<span class="hint" id="dragNote" style="margin:0"></span></div>
     <div class="verdict" id="verdict">—</div>
   </div>
 
@@ -111,8 +113,8 @@
   </footer>
 </div>
 
-<script src="aegis_modules.js?v=3"></script>
+<script src="aegis_modules.js?v=4"></script>
 <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
-<script src="firecontrol.js?v=3"></script>
+<script src="firecontrol.js?v=4"></script>
 </body>
 </html>
