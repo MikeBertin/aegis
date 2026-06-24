@@ -9,27 +9,43 @@ const COL = {
 // The Python "API" we expose to JS. Imports the real aegis modules and returns
 // JSON so we never wrestle with proxy lifetimes.
 const PY_DRIVER = `
-import sys, json
+import sys, json, math
 sys.path.insert(0, "/home/pyodide")
 from aegis.controller import default_pan_tilt
 from aegis import simulator as sim
+from aegis.estimator import TargetEstimator
+from aegis.tracking import TargetTracker
 from aegis.safety import SafetyGate
 from aegis.tracker import Detection
 
 _SCEN = {
-    "step": (lambda: sim.step(20.0, -10.0), 2.5),
-    "sine": (lambda: sim.sine(26.0, 13.0, 0.5), 4.0),
+    "step": (lambda: sim.step(20.0, -10.0), 3.0),
+    "sine": (lambda: sim.sine(26.0, 13.0, 0.5), 5.0),
     "ramp": (lambda: sim.ramp(15.0, 0.0, -20.0, 0.0), 4.0),
 }
 
-def run_sim(kp, ki, kd, slew, scenario):
+def _rms(xs):
+    return math.sqrt(sum(x*x for x in xs)/len(xs)) if xs else 0.0
+
+def run_sim(kp, ki, kd, slew, scenario, lead_ms, ff_on):
     motion, dur = _SCEN[scenario]
     ctrl = default_pan_tilt(kp=kp, ki=ki, kd=kd, max_slew_deg_s=slew)
-    res = sim.run(ctrl, motion(), duration=dur, fps=30)
-    metrics = sim.step_metrics(res) if scenario == "step" else sim.tracking_metrics(res)
+    if ff_on:
+        tr = TargetTracker(ctrl, TargetEstimator(), lead_time=lead_ms/1000.0, ff_gain=1.0)
+        res = sim.run_tracking(tr, motion(), duration=dur, fps=30)
+        lead_az, lead_el = res.lead_az, res.lead_el
+    else:
+        res = sim.run(ctrl, motion(), duration=dur, fps=30)
+        lead_az, lead_el = list(res.target_az), list(res.target_el)
+    # Steady-state (tail) metrics so the acquisition transient doesn't dominate.
+    k = int(len(res.t) * 0.4)
+    lag = [math.hypot(res.target_az[i]-res.pan[i], res.target_el[i]-res.tilt[i]) for i in range(k, len(res.t))]
+    aim = [math.hypot(lead_az[i]-res.pan[i], lead_el[i]-res.tilt[i]) for i in range(k, len(res.t))]
     return json.dumps({
         "t": res.t, "taz": res.target_az, "tel": res.target_el,
-        "pan": res.pan, "tilt": res.tilt, "metrics": metrics, "scenario": scenario,
+        "pan": res.pan, "tilt": res.tilt, "leadaz": lead_az, "leadel": lead_el,
+        "lag_rms": round(_rms(lag), 2), "aim_rms": round(_rms(aim), 2),
+        "ff": ff_on, "lead_ms": lead_ms, "scenario": scenario,
     })
 
 _GATE = SafetyGate()
@@ -80,16 +96,17 @@ function fit(canvas) {
 let tuner = { data:null, frame:0, raf:null };
 
 function initTuner() {
-  const ids = ["kp","ki","kd","slew"];
+  const ids = ["kp","ki","kd","slew","lead"];
   ids.forEach(id => {
     const el = document.getElementById(id);
     const out = document.getElementById(id + "O");
-    const sync = () => { out.value = el.value; recompute(); };
+    const sync = () => { if (out) out.value = el.value; recompute(); };
     el.addEventListener("input", sync);
-    out.value = el.value;
+    if (out) out.value = el.value;
   });
   document.querySelectorAll('input[name=scen]').forEach(r =>
     r.addEventListener("change", recompute));
+  document.getElementById("ff").addEventListener("change", recompute);
   recompute();
   animateTurret();
 }
@@ -103,7 +120,9 @@ function recompute() {
   const ki = +document.getElementById("ki").value;
   const kd = +document.getElementById("kd").value;
   const slew = +document.getElementById("slew").value;
-  const json = runSim(kp, ki, kd, slew, currentScenario());
+  const lead = +document.getElementById("lead").value;
+  const ff = document.getElementById("ff").checked;
+  const json = runSim(kp, ki, kd, slew, currentScenario(), lead, ff);
   tuner.data = JSON.parse(json);
   tuner.frame = 0;
   drawPlot();
@@ -111,9 +130,12 @@ function recompute() {
 }
 
 function showMetrics() {
-  const m = tuner.data.metrics;
-  const parts = Object.entries(m).map(([k,v]) => `${k}=${v}`).join("   ");
-  document.getElementById("metrics").textContent = parts;
+  const d = tuner.data;
+  const ff = d.ff ? "ON" : "OFF";
+  let txt = `feedforward ${ff}   ·   lag (turret→target) = ${d.lag_rms}°`;
+  if (d.ff) txt += `   ·   aim-track error = ${d.aim_rms}°`;
+  if (d.ff && d.lead_ms > 0) txt += `   ·   leading by ${d.lead_ms} ms`;
+  document.getElementById("metrics").textContent = txt;
 }
 
 // Map angle (deg) -> canvas px, given axis ranges.
@@ -148,17 +170,26 @@ function animateTurret() {
     for (let k=0;k<=i;k++){ const fn=k?"lineTo":"moveTo"; ctx[fn](M.x(d.taz[k]),M.y(d.tel[k])); }
     ctx.stroke();
     const ta=d.taz[i], te=d.tel[i], pa=d.pan[i], pe=d.tilt[i];
-    // link
+    const la=d.leadaz[i], le=d.leadel[i];
+    const leading = d.ff && d.lead_ms > 0;
+    // link (turret aim -> target)
     ctx.strokeStyle = COL.amber; ctx.beginPath();
     ctx.moveTo(M.x(pa),M.y(pe)); ctx.lineTo(M.x(ta),M.y(te)); ctx.stroke();
+    // lead pip (where we aim ahead), only when leading
+    if (leading) {
+      ctx.strokeStyle = COL.amber; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(M.x(la),M.y(le),7,0,7); ctx.stroke();
+    }
     // target
     ctx.fillStyle = COL.red; ctx.beginPath(); ctx.arc(M.x(ta),M.y(te),9,0,7); ctx.fill();
     // aim crosshair
     ctx.strokeStyle = COL.green; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(M.x(pa)-12,M.y(pe)); ctx.lineTo(M.x(pa)+12,M.y(pe));
     ctx.moveTo(M.x(pa),M.y(pe)-12); ctx.lineTo(M.x(pa),M.y(pe)+12); ctx.stroke();
-    ctx.fillStyle = COL.muted; ctx.font="11px monospace";
-    ctx.fillText("● target", w-92, 18); ctx.fillStyle=COL.green; ctx.fillText("✛ turret aim", w-92, 34);
+    ctx.font="11px monospace";
+    ctx.fillStyle = COL.muted; ctx.fillText("● target", w-104, 18);
+    ctx.fillStyle = COL.green;  ctx.fillText("✛ turret aim", w-104, 34);
+    if (leading){ ctx.fillStyle = COL.amber; ctx.fillText("○ lead point", w-104, 50); }
     tuner.frame = (tuner.frame + 1) % d.t.length;
   }
   tuner.raf = requestAnimationFrame(() => setTimeout(animateTurret, 1000/30));

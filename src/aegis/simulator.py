@@ -47,6 +47,9 @@ class SimResult:
     err_az: list[float] = field(default_factory=list)  # pointing error, deg
     err_el: list[float] = field(default_factory=list)
     on_frame: list[bool] = field(default_factory=list)
+    # Lead point the turret aims at (populated by run_tracking; = target if none).
+    lead_az: list[float] = field(default_factory=list)
+    lead_el: list[float] = field(default_factory=list)
 
 
 def observe(
@@ -89,6 +92,39 @@ def run(
         res.err_az.append(az - controller.pan)
         res.err_el.append(el - controller.tilt)
         res.on_frame.append(err is not None)
+    return res
+
+
+def run_tracking(
+    tracker,
+    motion: Motion,
+    duration: float = 4.0,
+    fps: float = 30.0,
+    hfov: float = 60.0,
+    vfov: float = 37.0,
+) -> SimResult:
+    """Closed loop driven by a TargetTracker (feedforward + lead, M2.5)."""
+    dt = 1.0 / fps
+    n = int(duration * fps)
+    res = SimResult()
+    tracker.hfov, tracker.vfov = hfov, vfov
+
+    for i in range(n):
+        t = i * dt
+        az, el = motion(t)
+        err = observe(az, el, tracker.c.pan, tracker.c.tilt, hfov, vfov)
+        out = tracker.step(err, dt)
+
+        res.t.append(t)
+        res.target_az.append(az)
+        res.target_el.append(el)
+        res.pan.append(out.pan)
+        res.tilt.append(out.tilt)
+        res.err_az.append(az - out.pan)
+        res.err_el.append(el - out.tilt)
+        res.on_frame.append(err is not None)
+        res.lead_az.append(out.lead_az if out.has_target else az)
+        res.lead_el.append(out.lead_el if out.has_target else el)
     return res
 
 

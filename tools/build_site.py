@@ -17,7 +17,10 @@ import json
 import os
 
 SRC = "src/aegis"
-MODULES = ["tracker.py", "controller.py", "simulator.py", "safety.py"]
+MODULES = [
+    "tracker.py", "controller.py", "estimator.py",
+    "tracking.py", "simulator.py", "safety.py",
+]
 OUT = "docs/site/aegis_modules.js"
 
 

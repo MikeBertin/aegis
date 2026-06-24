@@ -106,19 +106,28 @@ class PanTiltController:
         self,
         error: tuple[float, float] | None,
         dt: float,
+        feedforward: tuple[float, float] = (0.0, 0.0),
     ) -> tuple[float, float]:
         """Advance one control step.
 
         ``error`` is ``(ex, ey)`` from :func:`tracker.aim_error`, or ``None``
         when the target is lost — in which case the turret holds position and
         the integrators freeze (no windup while blind).
+
+        ``feedforward`` is an optional ``(pan, tilt)`` axis velocity (deg/s)
+        added to the PID output *before* the slew limit. Driving it with the
+        target's estimated angular velocity cancels tracking lag — the PID then
+        only corrects the small residual error (see :mod:`aegis.tracking`).
         """
         if error is None:
             return self.pan, self.tilt
 
         ex, ey = error
-        v_pan = self.pan_sign * self.pan_pid.update(ex, dt)
-        v_tilt = self.tilt_sign * self.tilt_pid.update(ey, dt)
+        ff_pan, ff_tilt = feedforward
+        # Feedforward is an actual axis velocity, so it is added after the
+        # mount-sign mapping (which applies to the PID error term only).
+        v_pan = self.pan_sign * self.pan_pid.update(ex, dt) + ff_pan
+        v_tilt = self.tilt_sign * self.tilt_pid.update(ey, dt) + ff_tilt
 
         self.pan = self._step_axis(self.pan, v_pan, dt, self.pan_limits)
         self.tilt = self._step_axis(self.tilt, v_tilt, dt, self.tilt_limits)

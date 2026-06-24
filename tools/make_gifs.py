@@ -24,8 +24,10 @@ sys.path.insert(0, "src")
 
 from aegis import simulator as sim  # noqa: E402
 from aegis.controller import default_pan_tilt  # noqa: E402
+from aegis.estimator import TargetEstimator  # noqa: E402
 from aegis.safety import SafetyGate  # noqa: E402
 from aegis.tracker import Detection, aim_error  # noqa: E402
+from aegis.tracking import TargetTracker  # noqa: E402
 
 OUT = "docs/media"
 BG = "#0d1117"
@@ -179,10 +181,50 @@ def gif_safety_gate() -> None:
     print("  wrote safety_gate.gif")
 
 
+# --------------------------------------------------------------------------
+def gif_feedforward() -> None:
+    """Plain PID (lags behind) vs feedforward+lead (aims ahead), same target."""
+    motion = sim.ramp(rate_az=16.0, rate_el=0.0, az0=-24.0, el0=0.0)
+    dur = 3.2
+    plain = sim.run(default_pan_tilt(), motion, duration=dur, fps=FPS)
+    tr = TargetTracker(default_pan_tilt(), TargetEstimator(), lead_time=0.25, ff_gain=1.0)
+    led = sim.run_tracking(tr, motion, duration=dur, fps=FPS)
+    n = len(plain.t)
+
+    fig, ax = plt.subplots(figsize=(5.6, 2.6), dpi=100)
+    fig.patch.set_facecolor(BG)
+    _style(ax)
+    ax.set_title("M2.5 · feedforward + lead vs plain PID", fontsize=10)
+    ax.set_xlabel("azimuth (deg)")
+    ax.set_xlim(-30, 30)
+    ax.set_ylim(-6, 6)
+    ax.set_yticks([])
+
+    (tgt,) = ax.plot([], [], "o", color=RED, ms=13)
+    (lag,) = ax.plot([], [], "+", color=GREY, ms=14, mew=2)
+    (lead,) = ax.plot([], [], "+", color=GREEN, ms=14, mew=2)
+    ax.text(-29, 4.4, "● target", color=RED, fontsize=9)
+    ax.text(-29, 2.9, "✛ plain PID (lags)", color=GREY, fontsize=9)
+    ax.text(-29, -4.8, "✛ feedforward + lead (leads)", color=GREEN, fontsize=9)
+
+    def frame(i):
+        ta = plain.target_az[i]
+        tgt.set_data([ta], [0]); lag.set_data([plain.pan[i]], [1.6])
+        lead.set_data([led.pan[i]], [-1.6])
+        return tgt, lag, lead
+
+    anim = FuncAnimation(fig, frame, frames=n, interval=1000 / FPS, blit=True)
+    fig.tight_layout()
+    anim.save(f"{OUT}/feedforward.gif", writer=PillowWriter(fps=FPS))
+    plt.close(fig)
+    print("  wrote feedforward.gif")
+
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     print("Generating README GIFs from the real sim/controller/safety code...")
     gif_pid_step()
     gif_turret_track()
     gif_safety_gate()
+    gif_feedforward()
     print("Done -> docs/media/")

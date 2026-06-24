@@ -73,6 +73,14 @@
       <label><input type="radio" name="scen" value="step"> step</label>
       <label><input type="radio" name="scen" value="ramp"> ramp</label>
     </div>
+    <div class="scen" style="border-top:1px solid var(--border);padding-top:10px">
+      <label title="α-β velocity estimate fed straight to the servos — cancels tracking lag">
+        <input type="checkbox" id="ff"> <b>velocity feedforward</b> (kill the lag)</label>
+      <label style="display:flex;align-items:center;gap:8px">lead&nbsp;
+        <input id="lead" type="range" min="0" max="400" step="20" value="0" style="width:120px">
+        <output id="leadO">0</output>&nbsp;ms</label>
+      <span class="hint" style="margin:0">(lead aims ahead by dart flight-time)</span>
+    </div>
     <div class="row">
       <div class="col"><canvas id="vizTurret" width="560" height="380"></canvas></div>
       <div class="col"><canvas id="vizPlot" width="560" height="380"></canvas></div>
@@ -114,8 +122,8 @@
   </footer>
 </div>
 
-<script src="aegis_modules.js"></script>
+<script src="aegis_modules.js?v=2"></script>
 <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
-<script src="demo.js"></script>
+<script src="demo.js?v=2"></script>
 </body>
 </html>

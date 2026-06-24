@@ -6,6 +6,16 @@ Decisions, progress notes, session diary. Most recent first.
 
 ---
 
+## 2026-06-24 — M2.5 predictive tracking: feedforward + lead | crosshair no longer lags / now leads | verified in demo
+- **Why:** the demo crosshair visibly lagged the moving target — fundamental to pure feedback (PID needs a position error to generate keep-up velocity). Feedback can't lead; feedforward can.
+- **`estimator.py`** — α-β filter (fixed-gain constant-velocity tracker): smoothed position + velocity in one recursive step, critically-damped β from α. `TargetEstimator` runs one per axis. Default α=0.7 (responsiveness vs noise tolerance). Pure, tested.
+- **`controller.py`** — `PanTiltController.update` gains an optional `feedforward=(pan,tilt)` axis-velocity term added after the mount-sign mapping, before the slew clamp. Backward-compatible (default 0).
+- **`tracking.py`** — `TargetTracker`: reconstructs absolute target angle from aim_error + turret pose → α-β smooth → **lead** point = pos + vel·lead_time → drives PID toward the lead point **with velocity feedforward**. `simulator.run_tracking` drives it; SimResult gains lead_az/lead_el.
+- **Result (sim):** steady-state tracking lag on a sine cut ~68% (5.8°→1.9° RMS). On a ramp, aim leads by exactly velocity×lead_time (verified: 0.37° aim-track error, ~4° lead). Lead on a fast sine is intentionally imperfect (predicting far ahead of an oscillating target is hard) — clean on constant-velocity, as expected.
+- **Demo:** feedforward toggle + lead-time slider + amber lead-pip + lag/aim-track metrics. Verified live in preview browser (lag 5.82°→1.87° with ff on; aim leads ahead with lead>0; no console errors). Added cache-bust ?v= on scripts. Rebuilt bundle (now 7 modules incl. estimator/tracking).
+- **GIF:** `feedforward.gif` — plain PID (grey, lags) vs feedforward+lead (green, leads), same target.
+- **Tests:** 62 green (+11: α-β init/convergence/critically-damped/reset, feedforward lag-cut, lead-ahead, zero-lead-on-target, lost-target reset).
+
 ## 2026-06-24 — Portfolio glow-up: GIFs + Mermaid README + interactive Pyodide demo | verified in-browser | next: publish when ready
 - **Interactive demo site** (`docs/site/`) — a static page that runs the **real** `controller.py`/`simulator.py`/`safety.py` in-browser via **Pyodide** (no logic duplication). `tools/build_site.py` bundles those 4 pure modules into `aegis_modules.js` (zero-drift, regenerated from src). Two panels: ① PID tuner (live sliders → animated turret viz + response plot + metrics), ② safety-gate playground (drag a person box → real `SafetyGate.evaluate()` flips CLEAR/BLOCKED). Verified end-to-end with the preview browser: Pyodide boots clean (no console errors), sim metrics + all safety paths (clear / interlock / forbidden / disarmed / non-fireable) compute correctly, sliders re-run the sim live. Built to run locally (`cd docs/site && python -m http.server`); publish via GitHub Pages when repo goes public.
 - **README GIFs** (`docs/media/`, `tools/make_gifs.py`) — pid_step, turret_track, safety_gate, all generated headlessly from the real sim. ~160–300KB each.
