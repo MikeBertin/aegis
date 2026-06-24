@@ -2,8 +2,8 @@
 
 State: 🟢 ACTIVE
 Phase: 3 — BUILD (M1–M4 software all done; hardware-gated)
-Last action: 2026-06-24 — M4 dataset→train→export pipeline built & smoke-tested end-to-end (synthetic balloons → build → 1-epoch YOLOv11 fine-tune → ONNX export, on CPU). aegis.data (pure label/split/data.yaml, tested) + capture.py/train.py/export.py + synth generator. 'balloon' added to SafetyGate fireable allowlist. 51 headless tests green. Docs: M4-TRAINING.md.
-Next action: ORDER the M3 kit (~£425, docs/HARDWARE.md) to unblock physical build. M4 real-data path (capture→label→train) can also start now on the laptop — needs a webcam + a labelling pass.
+Last action: 2026-06-24 — Portfolio glow-up: 3 README GIFs (from real sim), Mermaid-diagram README hero, and an interactive Pyodide demo site (docs/site/) running the real controller/simulator/safety code in-browser. Verified working in the preview browser (Pyodide boots clean, all safety paths + live PID tuning compute correctly). Built to run locally; publish via Pages when repo goes public. 51 tests still green.
+Next action: Decide when to make the repo public + enable GitHub Pages (unlocks the live demo URL). To unblock the physical build, ORDER the M3 kit (~£425, docs/HARDWARE.md). M4 real-data path (capture→label→train) can start now on the laptop.
 Blocked by: Hardware not ordered (M3 physical). All M1–M4 software is built & tested; remaining work is real-world: servos, real dataset, on-Jetson TensorRT.
 Next milestone: M3 physical bring-up (gimbal tracks under real servos, darts out) — needs hardware
 Outcome: —

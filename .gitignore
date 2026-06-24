@@ -18,5 +18,8 @@ models/*.engine
 datasets/
 runs/
 
+# Local editor / preview config (machine-specific paths)
+.claude/
+
 # OS
 .DS_Store

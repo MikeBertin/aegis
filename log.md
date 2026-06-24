@@ -6,6 +6,13 @@ Decisions, progress notes, session diary. Most recent first.
 
 ---
 
+## 2026-06-24 — Portfolio glow-up: GIFs + Mermaid README + interactive Pyodide demo | verified in-browser | next: publish when ready
+- **Interactive demo site** (`docs/site/`) — a static page that runs the **real** `controller.py`/`simulator.py`/`safety.py` in-browser via **Pyodide** (no logic duplication). `tools/build_site.py` bundles those 4 pure modules into `aegis_modules.js` (zero-drift, regenerated from src). Two panels: ① PID tuner (live sliders → animated turret viz + response plot + metrics), ② safety-gate playground (drag a person box → real `SafetyGate.evaluate()` flips CLEAR/BLOCKED). Verified end-to-end with the preview browser: Pyodide boots clean (no console errors), sim metrics + all safety paths (clear / interlock / forbidden / disarmed / non-fireable) compute correctly, sliders re-run the sim live. Built to run locally (`cd docs/site && python -m http.server`); publish via GitHub Pages when repo goes public.
+- **README GIFs** (`docs/media/`, `tools/make_gifs.py`) — pid_step, turret_track, safety_gate, all generated headlessly from the real sim. ~160–300KB each.
+- **README rewrite** — hero with badges, demo gallery, Mermaid architecture flowchart + safety decision-tree, milestone table, design notes. Portfolio-grade.
+- **Decisions:** kept repo private for now (build-to-run-locally); Pyodide over a JS port (real code, no drift); shipped site+GIFs+Mermaid, deferred CI/LICENSE/build-guide.
+- `.claude/` gitignored (machine-specific preview config).
+
 ## 2026-06-24 — M4 custom-detector pipeline built & smoke-tested | dataset→train→export proven on CPU | next: real data / hardware
 - **`aegis.data` (pure, tested):** `dataset.py` — YOLO label format (`xyxy_to_yolo`/inverse with clamping, `label_line`), deterministic `split_dataset` (keeps ≥1 in val), `data_yaml` generator. `build.py` — writes the Ultralytics tree (images/labels/{train,val} + data.yaml) from annotated samples. `synth.py` — synthetic "balloon" generator (coloured ellipse + highlight + string on noise) to validate plumbing with zero real data.
 - **CLIs (thin Ultralytics wrappers):** `train.py` (fine-tune yolo11n; `--synthetic N` for smoke-test; output pinned to repo-local gitignored `runs/` via absolute project path — global ultralytics runs_dir was leaking to workspace), `export.py` (ONNX on laptop, TensorRT engine on Jetson w/ FP16/INT8 notes), `capture.py` (webcam grab → datasets/<name>/raw for labelling).

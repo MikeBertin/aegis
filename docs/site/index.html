@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AEGIS — interactive demo</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --border:#30363d; --fg:#c9d1d9; --muted:#8b949e;
+    --green:#3fb950; --red:#f85149; --amber:#d29922; --blue:#58a6ff; --accent:#76b900;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;line-height:1.5}
+  header{padding:28px 20px 8px;text-align:center;border-bottom:1px solid var(--border)}
+  header h1{margin:0;font-size:26px;letter-spacing:.5px}
+  header p{margin:6px 0 0;color:var(--muted);font-size:14px}
+  .wrap{max-width:980px;margin:0 auto;padding:20px}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;
+    padding:18px;margin:18px 0}
+  .panel h2{margin:0 0 4px;font-size:18px}
+  .panel .sub{color:var(--muted);font-size:13px;margin-bottom:14px}
+  .row{display:flex;flex-wrap:wrap;gap:18px}
+  .col{flex:1 1 300px;min-width:280px}
+  canvas{width:100%;background:#010409;border:1px solid var(--border);border-radius:8px;display:block}
+  .controls{display:grid;grid-template-columns:auto 1fr auto;gap:8px 12px;align-items:center;margin-top:8px}
+  .controls label{color:var(--muted);font-size:13px;font-family:monospace}
+  .controls output{font-family:monospace;color:var(--fg);min-width:48px;text-align:right;font-size:13px}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .scen{display:flex;gap:14px;margin:10px 0;font-size:13px;color:var(--muted)}
+  .metrics{font-family:monospace;font-size:13px;color:var(--fg);margin-top:10px;
+    background:#010409;border:1px solid var(--border);border-radius:6px;padding:8px 10px}
+  .gate-controls{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:12px;font-size:13px}
+  select,.chk{background:#010409;color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:13px}
+  .hud{font-family:monospace;font-weight:700;font-size:15px;margin-top:10px}
+  .hint{color:var(--muted);font-size:12px;margin-top:6px}
+  a{color:var(--blue)}
+  #loading{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;
+    justify-content:center;flex-direction:column;gap:14px;z-index:10}
+  .spinner{width:34px;height:34px;border:3px solid var(--border);border-top-color:var(--accent);
+    border-radius:50%;animation:spin 0.9s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  footer{text-align:center;color:var(--muted);font-size:12px;padding:24px}
+  .badge{font-family:monospace;font-size:11px;color:var(--accent);border:1px solid var(--accent);
+    border-radius:20px;padding:2px 10px}
+</style>
+</head>
+<body>
+<div id="loading">
+  <div class="spinner"></div>
+  <div id="loadmsg">Booting Python (Pyodide)…</div>
+  <div style="color:var(--muted);font-size:12px;max-width:340px;text-align:center">
+    This page runs the real <code>controller.py</code>, <code>simulator.py</code> and
+    <code>safety.py</code> from the AEGIS repo — in your browser.
+  </div>
+</div>
+
+<header>
+  <h1>🛡️ AEGIS — interactive demo</h1>
+  <p>The actual turret control &amp; safety code, running live via Pyodide &nbsp;<span class="badge">real Python</span></p>
+</header>
+
+<div class="wrap">
+
+  <!-- PANEL 1: control tuner -->
+  <div class="panel">
+    <h2>① PID control tuner</h2>
+    <div class="sub">Drag the gains and watch the turret (left) chase the target while the
+      response curve (right) redraws. The plant is an integrator — high Ki hurts tracking.</div>
+    <div class="scen">
+      target motion:
+      <label><input type="radio" name="scen" value="sine" checked> sine (moving)</label>
+      <label><input type="radio" name="scen" value="step"> step</label>
+      <label><input type="radio" name="scen" value="ramp"> ramp</label>
+    </div>
+    <div class="row">
+      <div class="col"><canvas id="vizTurret" width="560" height="380"></canvas></div>
+      <div class="col"><canvas id="vizPlot" width="560" height="380"></canvas></div>
+    </div>
+    <div class="controls">
+      <label>Kp</label><input id="kp" type="range" min="0" max="400" step="5" value="200"><output id="kpO"></output>
+      <label>Ki</label><input id="ki" type="range" min="0" max="80"  step="1" value="8"><output id="kiO"></output>
+      <label>Kd</label><input id="kd" type="range" min="0" max="40"  step="1" value="14"><output id="kdO"></output>
+      <label>slew°/s</label><input id="slew" type="range" min="50" max="500" step="10" value="300"><output id="slewO"></output>
+    </div>
+    <div class="metrics" id="metrics">—</div>
+  </div>
+
+  <!-- PANEL 2: safety gate -->
+  <div class="panel">
+    <h2>② Safety-gate playground</h2>
+    <div class="sub"><b>Drag the blue person box</b> toward the target. The gate is the real
+      <code>SafetyGate.evaluate()</code> — <i>track all, fire inanimate only</i>.</div>
+    <canvas id="vizSafety" width="900" height="360"></canvas>
+    <div class="gate-controls">
+      <span>target class:
+        <select id="targetClass" class="chk">
+          <option value="balloon">balloon (fireable)</option>
+          <option value="sports ball">sports ball (fireable)</option>
+          <option value="chair">chair (non-fireable)</option>
+          <option value="person">person (forbidden)</option>
+        </select>
+      </span>
+      <label><input type="checkbox" id="armed" checked> armed</label>
+      <label><input type="checkbox" id="locked" checked> locked (aim error small)</label>
+    </div>
+    <div class="hud" id="gateHud">—</div>
+    <div class="hint">Try: drag the person onto the balloon · switch the target to “person” · un-arm.</div>
+  </div>
+
+  <footer>
+    Built from <code>src/aegis/{tracker,controller,simulator,safety}.py</code> — the same code the turret runs.
+    <br>Part of <a href="../../README.md">Project AEGIS</a>. Modules bundled by <code>tools/build_site.py</code>.
+  </footer>
+</div>
+
+<script src="aegis_modules.js"></script>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<script src="demo.js"></script>
+</body>
+</html>
