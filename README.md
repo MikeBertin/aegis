@@ -3,7 +3,7 @@
 > *A computer-vision turret that tracks anything and fires only on inanimate targets — with the safety architecture as a first-class, testable feature, not an afterthought.*
 
 ![milestones](https://img.shields.io/badge/software-M1--M4_complete-3fb950)
-![tests](https://img.shields.io/badge/tests-78_passing-3fb950)
+![tests](https://img.shields.io/badge/tests-106_passing-3fb950)
 ![python](https://img.shields.io/badge/python-3.13-3776ab)
 ![model](https://img.shields.io/badge/detector-YOLOv11-blue)
 ![edge](https://img.shields.io/badge/edge-Jetson_Orin_Nano-76b900)
@@ -61,6 +61,10 @@ Each frame: the detector finds objects → the tracker picks one and computes a 
 
 **Stereo ranging + fire-control (M2.6).** A fixed lead time is a guess; the physical version computes it. `stereo.py` recovers **range** from a calibrated stereo pair (`Z = focal·baseline / disparity`, with range error growing as the *square* of distance). `ballistics.py` then solves the real fire-control problem: given range, dart muzzle speed and target velocity, find the launch direction and time-of-flight where dart and target **meet** — leading horizontally *and* aiming above to beat gravity drop (the classic implicit moving-interceptor problem, solved by iteration). A **drag model** (`DartModel`) captures the foam dart's deceleration (`v = v₀·e^(-k·s)`), which stretches the flight time and so *increases* both the lead and the hold-over. The whole chain is wired into the live loop by `FireControlTracker` — bearing + stereo range → 3D target state → firing solution → servo command — and validated by a hit/miss shot simulation: the turret aims so a dart *with gravity and drag* hits the moving target where naive aim-at-target misses by tens of centimetres.
 
+**Sharper fire-control (M2.7).** Three refinements addressing real limits: **latency compensation** predicts the target through the perception+actuation delay before launch (so the lead covers system latency, not just dart flight — a 100 ms pipeline adds ~3.5° of lead at 5 m); a **constant-acceleration α-β-γ filter** (`estimator.py`) follows a *maneuvering* target the constant-velocity model can't; and a **numerical solver** (`refine=`) flies the shot and nulls the closest-approach miss, closing the heavy-drag gap the closed-form seed leaves (k=0.15 at 5 m: a 16 cm miss → a 1 cm hit).
+
+**Multi-target tracking (MOT).** `mot.py` turns per-frame detections into persistent tracks with stable IDs via predict → IoU-match → update → age-out. Tracks confirm only after several hits (rejects one-frame false positives) and **coast on their velocity estimate through brief occlusion**, so a momentary miss keeps the lock and the ID instead of dropping or re-numbering it. `prioritize()` picks which confirmed track to engage — the foundation for tracking a crowd and choosing one.
+
 ## Safety model — *enforced in code, not just documented*
 
 Firing is gated by [`safety.py`](src/aegis/safety.py). It is defence-in-depth, so no single misconfiguration can authorise a shot at a living thing:
@@ -80,6 +84,23 @@ flowchart TD
 
 People and animals are on a **hard denylist that overrides everything** — they can never be a target even if mistakenly added to the allowlist. Firing additionally requires a physical arm switch **and** an explicit fire action. *Track all, fire inanimate only* is a property of the code, demonstrated by 9 dedicated tests and the safety-gate demo above.
 
+Wrapping the gate, `safety_fsm.py` adds a formal **state machine** and the operational failsafes a real weapon system needs: a **perception watchdog** (stale vision trips FAULT), **temporal confirmation** (N consecutive CLEAR frames before a shot, killing single-frame false positives), **angular no-fire zones**, a **rate limit** and a **magazine count** — with an audit log of every transition and shot.
+
+```mermaid
+stateDiagram-v2
+    [*] --> SAFE
+    SAFE --> ARMED: arm
+    ARMED --> SAFE: disarm
+    ARMED --> TRACKING: locked + clear
+    TRACKING --> ARMED: target lost / blocked
+    TRACKING --> FIRING: fire
+    FIRING --> TRACKING
+    SAFE --> FAULT: watchdog / e-stop
+    ARMED --> FAULT: watchdog / e-stop
+    TRACKING --> FAULT: watchdog / e-stop
+    FAULT --> SAFE: reset
+```
+
 ## Milestones
 
 | # | Milestone | State |
@@ -88,7 +109,10 @@ People and animals are on a **hard denylist that overrides everything** — they
 | **M2** | PID pan/tilt control, tuned in closed-loop simulation | ✅ done (sim) |
 | **M2.5** | Predictive tracking — α-β velocity feedforward + target lead | ✅ done (sim) |
 | **M2.6** | Stereo ranging + ballistic fire-control (intercept + gravity + drag, wired into tracking) | ✅ done (sim) |
+| **M2.7** | Sharper fire-control — latency comp, α-β-γ accel Kalman, numerical solver | ✅ done (sim) |
+| **MOT** | SORT multi-target tracking — stable IDs, occlusion survival, prioritisation | ✅ done |
 | **M3** | Actuation layer + safety gate (mock-tested; real drivers stubbed) | ✅ software done · ⏳ hardware |
+| **M3.1** | Safety state machine + failsafes (watchdog, temporal confirmation, no-fire zones, rate/magazine) | ✅ done |
 | **M4** | Custom detector: dataset → train → ONNX/TensorRT export | ✅ pipeline done · ⏳ real data |
 
 Remaining work is real-world, not code: order the kit ([docs/HARDWARE.md](docs/HARDWARE.md)), capture+label a real dataset, build the TensorRT engine on the Jetson.
@@ -105,7 +129,7 @@ python main.py                            # M1+M2: live tracking + commanded ser
 python main.py --classes "sports ball" --turret mock   # M3: full safety + fire loop, no hardware
 python sim.py --plot                      # M2: tune the PID, save response plots
 python train.py --synthetic 16 --epochs 1 --device cpu # M4: smoke-test the training pipeline
-pytest                                     # 78 headless tests, no GPU needed
+pytest                                     # 106 headless tests, no GPU needed
 ```
 In the live window: `a` arm/disarm · `f` fire (only if the gate says CLEAR) · `q` quit.
 
@@ -136,17 +160,19 @@ aegis/
 ├── src/aegis/
 │   ├── tracker.py           # target select + aim-error maths (pure — tested)
 │   ├── controller.py        # PID + PanTiltController + tuned factory (pure — tested)
-│   ├── estimator.py         # α-β velocity filter (pure — tested)
-│   ├── tracking.py          # M2.5 feedforward+lead + M2.6 FireControlTracker (pure — tested)
-│   ├── stereo.py            # M2.6 stereo range from disparity (pure — tested)
-│   ├── ballistics.py        # M2.6 intercept + gravity + drag fire-control solver (pure — tested)
+│   ├── estimator.py         # α-β velocity + α-β-γ accel filters (pure — tested)
+│   ├── tracking.py          # feedforward+lead + FireControlTracker (pure — tested)
+│   ├── stereo.py            # stereo range from disparity (pure — tested)
+│   ├── ballistics.py        # intercept + gravity + drag + latency + numerical solver (pure — tested)
+│   ├── mot.py               # SORT multi-target tracking: IDs, occlusion, prioritise (pure — tested)
 │   ├── simulator.py         # closed-loop camera/target model + tracking metrics
 │   ├── safety.py            # SafetyGate fire-authorisation logic (pure — tested)
+│   ├── safety_fsm.py        # safety state machine + failsafes (pure — tested)
 │   ├── turret.py            # M3 integration: controller + servos + trigger + gate
 │   ├── config.py detector.py overlay.py pipeline.py   # config, YOLO adapter, HUD, loop
 │   ├── hardware/            # driver ABCs + servo mapping, mocks, PCA9685/Nerf (lazy)
 │   └── data/                # M4: YOLO label/split/data.yaml (pure), builder, synth
-└── tests/                   # tracker, controller, safety, hardware, dataset — 78 pure tests
+└── tests/                   # tracker, controller, safety, hardware, dataset — 106 pure tests
 ```
 
 ## Design notes
