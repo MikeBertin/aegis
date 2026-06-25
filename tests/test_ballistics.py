@@ -99,6 +99,33 @@ def test_ignoring_drag_undershoots_a_dragging_dart():
     assert not hit and miss > 0.14
 
 
+# --- Latency compensation ---
+
+def test_latency_increases_lead():
+    p, v = (0.0, 0.0, 5.0), (3.0, 0.0, 0.0)
+    no_lat = firing_solution(p, v, 20.0, gravity=True, latency=0.0)
+    lat = firing_solution(p, v, 20.0, gravity=True, latency=0.1)
+    assert lat.lead_deg > no_lat.lead_deg + 1.0  # leads further for pipeline delay
+
+
+# --- Numerical refinement (closes the heavy-drag / accel gap) ---
+
+def test_refine_makes_heavy_drag_hit():
+    p, v, dart = (0.0, 0.0, 5.0), (3.0, 0.0, 0.0), DartModel(20.0, 0.15)
+    coarse = firing_solution(p, v, dart, gravity=True, refine=0)
+    fine = firing_solution(p, v, dart, gravity=True, refine=4)
+    assert not simulate_shot(coarse.aim_az, coarse.aim_el, dart, p, v, gravity=True)[0]
+    assert simulate_shot(fine.aim_az, fine.aim_el, dart, p, v, gravity=True)[0]
+
+
+def test_refine_hits_an_accelerating_target():
+    # Target accelerating sideways — constant-velocity solve alone under-leads.
+    p, v, a = (0.0, 0.0, 5.0), (1.0, 0.0, 0.0), (3.0, 0.0, 0.0)
+    sol = firing_solution(p, v, 20.0, gravity=True, accel=a, refine=4)
+    hit, _, _ = simulate_shot(sol.aim_az, sol.aim_el, 20.0, p, v, gravity=True, accel=a)
+    assert hit
+
+
 def _el_to(p):
     import math
     return math.degrees(math.atan2(p[1], math.hypot(p[0], p[2])))

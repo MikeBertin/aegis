@@ -4,7 +4,12 @@ import sys
 
 sys.path.insert(0, "src")
 
-from aegis.estimator import AlphaBeta, TargetEstimator  # noqa: E402
+from aegis.estimator import (  # noqa: E402
+    AlphaBeta,
+    AlphaBetaGamma,
+    Estimator3DCA,
+    TargetEstimator,
+)
 
 
 def test_rejects_bad_gains():
@@ -62,3 +67,32 @@ def test_two_axis_estimator_independent():
     est = TargetEstimator(alpha=0.6)
     (az, el), (av, ev) = est.update(3.0, -4.0, dt=0.1)
     assert (az, el) == (3.0, -4.0) and (av, ev) == (0.0, 0.0)
+
+
+# --- α-β-γ (constant-acceleration) ---
+
+def test_abg_tracks_constant_acceleration():
+    f = AlphaBetaGamma(0.6, 0.5, 0.2)
+    dt, acc = 1 / 60, 4.0
+    x = v = 0.0
+    for _ in range(240):  # 4 s of x = ½·a·t²
+        v += acc * dt
+        x += v * dt
+        ex, ev, ea = f.update(x, dt)
+    assert abs(ea - acc) < 0.6      # acceleration locked on
+    assert abs(ev - v) < 0.6        # and velocity tracks
+
+
+def test_abg_rejects_bad_gains():
+    for a, b, g in [(0.0, 0.4, 0.1), (0.5, 0.0, 0.1), (0.5, 0.4, 0.0)]:
+        try:
+            AlphaBetaGamma(a, b, g)
+        except ValueError:
+            continue
+        raise AssertionError("expected ValueError")
+
+
+def test_estimator3dca_returns_pos_vel_acc():
+    est = Estimator3DCA()
+    p, v, a = est.update((1.0, 2.0, 3.0), dt=0.1)
+    assert p == (1.0, 2.0, 3.0) and v == (0.0, 0.0, 0.0) and a == (0.0, 0.0, 0.0)

@@ -8,7 +8,7 @@ sys.path.insert(0, "src")
 
 from aegis.ballistics import DartModel, simulate_shot  # noqa: E402
 from aegis.controller import default_pan_tilt  # noqa: E402
-from aegis.estimator import Estimator3D  # noqa: E402
+from aegis.estimator import Estimator3D, Estimator3DCA  # noqa: E402
 from aegis.tracking import FireControlTracker  # noqa: E402
 
 HFOV, VFOV = 60.0, 37.0
@@ -21,14 +21,15 @@ def _bearing(p):
     return az, el, rng
 
 
-def _run(dart, p0, vel, gravity, seconds=2.5, fps=60):
+def _run(dart, p0, vel, gravity, seconds=2.5, fps=60, tracker=None, accel=(0, 0, 0)):
     ctrl = default_pan_tilt(tilt_sign=-1)
-    fct = FireControlTracker(ctrl, dart, Estimator3D(0.7), gravity=gravity)
+    fct = tracker or FireControlTracker(ctrl, dart, Estimator3D(0.7), gravity=gravity)
+    fct.c = ctrl
     dt = 1.0 / fps
     last_p = p0
     for i in range(int(seconds * fps)):
         t = i * dt
-        p = (p0[0] + vel[0] * t, p0[1] + vel[1] * t, p0[2] + vel[2] * t)
+        p = tuple(p0[k] + vel[k] * t + 0.5 * accel[k] * t * t for k in range(3))
         az, el, rng = _bearing(p)
         ex = (az - ctrl.pan) / (HFOV / 2)
         ey = (ctrl.tilt - el) / (VFOV / 2)
@@ -64,3 +65,21 @@ def test_firecontrol_holds_over_for_gravity():
     ctrl, last_p = _run(dart, p0, vel, gravity=True, seconds=2.0)
     _, el_now, _ = _bearing(last_p)
     assert ctrl.tilt > el_now + 0.3  # aims above the target
+
+
+def test_accel_aware_tracker_hits_a_maneuvering_target():
+    # Constant-acceleration estimator + numerical refine on an accelerating target.
+    dart = DartModel(22.0, 0.05)
+    ctrl = default_pan_tilt(tilt_sign=-1)
+    fct = FireControlTracker(
+        ctrl, dart, Estimator3DCA(0.6, 0.5, 0.2),
+        gravity=True, latency_s=0.03, refine=3,
+    )
+    p0, vel, acc = (-0.5, 0.0, 3.0), (0.4, 0.0, 0.0), (0.5, 0.0, 0.0)
+    ctrl, last_p = _run(dart, p0, vel, gravity=True, seconds=2.0, tracker=fct, accel=acc)
+    # Fire from the commanded aim; the target keeps accelerating -> must still hit.
+    v_now = tuple(vel[k] + acc[k] * 2.0 for k in range(3))
+    hit, _, close = simulate_shot(
+        ctrl.pan, ctrl.tilt, dart, last_p, v_now, gravity=True, accel=acc
+    )
+    assert hit, f"missed by {close*100:.0f} cm"

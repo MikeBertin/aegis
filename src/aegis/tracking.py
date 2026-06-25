@@ -125,11 +125,13 @@ class FireControlTracker:
         self,
         controller: PanTiltController,
         dart,                                   # muzzle speed or DartModel
-        estimator: Optional[Estimator3D] = None,
+        estimator=None,                          # Estimator3D or Estimator3DCA (accel-aware)
         hfov: float = 60.0,
         vfov: float = 37.0,
         gravity: bool = True,
         ff_gain: float = 1.0,
+        latency_s: float = 0.0,                  # pipeline delay to compensate
+        refine: int = 0,                         # numerical solver polish passes
     ) -> None:
         self.c = controller
         self.dart = dart
@@ -138,6 +140,8 @@ class FireControlTracker:
         self.vfov = vfov
         self.gravity = gravity
         self.ff_gain = ff_gain
+        self.latency_s = latency_s
+        self.refine = refine
         self._last_aim: Optional[tuple[float, float]] = None
 
     def reset(self) -> None:
@@ -162,11 +166,20 @@ class FireControlTracker:
         el = tilt - ey * (self.vfov / 2.0)
         p_meas = tuple(c * range_m for c in _angles_to_unit(az, el))
 
-        # 2. Smooth -> 3D position + velocity.
-        p, v = self.est.update(p_meas, dt)
+        # 2. Smooth -> 3D position + velocity (+ acceleration if a CA estimator).
+        est_out = self.est.update(p_meas, dt)
+        if len(est_out) == 3:
+            p, v, a = est_out
+        else:
+            p, v = est_out
+            a = (0.0, 0.0, 0.0)
 
-        # 3. Ballistic firing solution (computed lead + gravity hold-over).
-        sol = firing_solution(p, v, self.dart, self.gravity)
+        # 3. Ballistic firing solution — computed lead + gravity hold-over,
+        #    latency-compensated, accel-aware, optionally numerically refined.
+        sol = firing_solution(
+            p, v, self.dart, self.gravity,
+            latency=self.latency_s, accel=a, refine=self.refine,
+        )
         if not sol.ok:
             self.c.update((ex, ey), dt)  # fall back to centring on the target
             return FireControlOutput(self.c.pan, self.c.tilt, sol, p, v, True)

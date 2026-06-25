@@ -136,30 +136,96 @@ def intercept_time(
 
 
 def firing_solution(
-    p: Vec3, v: Vec3, dart, gravity: bool = True
+    p: Vec3,
+    v: Vec3,
+    dart,
+    gravity: bool = True,
+    latency: float = 0.0,
+    accel: Vec3 = (0.0, 0.0, 0.0),
+    refine: int = 0,
 ) -> FireSolution:
     """Full fire-control solution for a target at ``p`` moving at ``v``.
 
-    ``dart`` is a muzzle speed (float) or a :class:`DartModel` (with drag)."""
-    t = intercept_time(p, v, dart, gravity)
+    ``dart``   — muzzle speed (float) or a :class:`DartModel` (with drag).
+    ``latency``— pipeline delay (inference + actuation) before the dart launches;
+                 the target is predicted forward by it, so the lead also covers
+                 system latency, not just dart flight time.
+    ``accel``  — target acceleration, used over the latency window and (via
+                 ``refine``) the flight for a maneuvering target.
+    ``refine`` — numerical polish passes: fly the shot and null the closest-
+                 approach miss. Closes the heavy-drag / acceleration gap the
+                 closed-form seed leaves.
+    """
+    # Advance the target through the pipeline latency before launch.
+    p0 = _add(p, _add(_scale(v, latency), _scale(accel, 0.5 * latency * latency)))
+    v0 = _add(v, _scale(accel, latency))
+
+    t = intercept_time(p0, v0, dart, gravity)
     if t is None or t <= 0:
         return FireSolution(False, 0, 0, 0, 0, 0, (0, 0, 0))
 
-    intercept = _add(p, _scale(v, t))
+    intercept = _add(p0, _scale(v0, t))
     launch = (
         intercept[0],
         intercept[1] + (0.5 * G * t * t if gravity else 0.0),
         intercept[2],
     )
+    aim_az, aim_el = _azimuth(launch), _elevation(launch)
+
+    if refine > 0:
+        aim_az, aim_el = _refine_aim(
+            aim_az, aim_el, _as_dart(dart), p0, v0, accel, gravity, refine
+        )
+
     return FireSolution(
         ok=True,
         tof=t,
-        aim_az=_azimuth(launch),
-        aim_el=_elevation(launch),
-        lead_deg=_azimuth(launch) - _azimuth(p),
-        holdover_deg=_elevation(launch) - _elevation(p),
+        aim_az=aim_az,
+        aim_el=aim_el,
+        lead_deg=aim_az - _azimuth(p),
+        holdover_deg=aim_el - _elevation(p),
         intercept=intercept,
     )
+
+
+def _fly(
+    aim_az, aim_el, dm, p0, v, accel, gravity, dt=0.002, t_max=3.0
+):
+    """Integrate dart (gravity + drag) and target (v + accel); return the
+    closest-approach distance, time, and the dart/target positions there."""
+    az, el = math.radians(aim_az), math.radians(aim_el)
+    direction = (math.sin(az) * math.cos(el), math.sin(el), math.cos(az) * math.cos(el))
+    dpos = (0.0, 0.0, 0.0)
+    dvel = _scale(direction, dm.muzzle_speed)
+    tpos, tvel = p0, v
+    t, best = 0.0, (float("inf"), 0.0, dpos, tpos)
+    while t < t_max:
+        dpos = _add(dpos, _scale(dvel, dt))
+        speed = _norm(dvel)
+        dvel = (
+            dvel[0] + (-dm.drag_k * speed * dvel[0]) * dt,
+            dvel[1] + ((-G if gravity else 0.0) - dm.drag_k * speed * dvel[1]) * dt,
+            dvel[2] + (-dm.drag_k * speed * dvel[2]) * dt,
+        )
+        tvel = _add(tvel, _scale(accel, dt))
+        tpos = _add(tpos, _scale(tvel, dt))
+        d = _norm(_sub(dpos, tpos))
+        if d < best[0]:
+            best = (d, t, dpos, tpos)
+        if dpos[2] > tpos[2] + 0.5:
+            break
+        t += dt
+    return best
+
+
+def _refine_aim(aim_az, aim_el, dm, p0, v, accel, gravity, iters):
+    """Fixed-point polish: nudge the aim by the angular miss at closest approach
+    until the dart passes through the (moving, accelerating, dragging) target."""
+    for _ in range(iters):
+        _, _, dart_ca, tgt_ca = _fly(aim_az, aim_el, dm, p0, v, accel, gravity)
+        aim_az += _azimuth(tgt_ca) - _azimuth(dart_ca)
+        aim_el += _elevation(tgt_ca) - _elevation(dart_ca)
+    return aim_az, aim_el
 
 
 def simulate_shot(
@@ -169,39 +235,16 @@ def simulate_shot(
     p0: Vec3,
     v: Vec3,
     gravity: bool = True,
+    accel: Vec3 = (0.0, 0.0, 0.0),
     hit_radius: float = 0.14,   # ~balloon radius
     dt: float = 0.002,
     t_max: float = 3.0,
 ) -> tuple[bool, float, float]:
-    """Fire a dart along ``(aim_az, aim_el)`` and fly both dart and target
-    forward (with gravity and, if the DartModel has it, quadratic drag).
-    Returns ``(hit, time, closest_approach_m)`` — the *truth* model that proves
-    a firing solution actually connects (and that naive aim doesn't)."""
+    """Fire a dart along ``(aim_az, aim_el)`` and fly both dart (gravity + drag)
+    and target (``v`` + ``accel``) forward. Returns ``(hit, time, closest_m)`` —
+    the *truth* model that proves a firing solution connects (and naive doesn't)."""
     dm = _as_dart(dart)
-    az, el = math.radians(aim_az), math.radians(aim_el)
-    direction = (
-        math.sin(az) * math.cos(el),
-        math.sin(el),
-        math.cos(az) * math.cos(el),
+    closest, t_ca, dart_ca, tgt_ca = _fly(
+        aim_az, aim_el, dm, p0, v, accel, gravity, dt=dt, t_max=t_max
     )
-    dpos = (0.0, 0.0, 0.0)
-    dvel = _scale(direction, dm.muzzle_speed)
-    target = p0
-    t, closest = 0.0, float("inf")
-    while t < t_max:
-        dpos = _add(dpos, _scale(dvel, dt))
-        # Acceleration: gravity (−y) plus quadratic drag opposing velocity.
-        speed = _norm(dvel)
-        ax = -dm.drag_k * speed * dvel[0]
-        ay = (-G if gravity else 0.0) - dm.drag_k * speed * dvel[1]
-        az_ = -dm.drag_k * speed * dvel[2]
-        dvel = (dvel[0] + ax * dt, dvel[1] + ay * dt, dvel[2] + az_ * dt)
-        target = _add(target, _scale(v, dt))
-        d = _norm(_sub(dpos, target))
-        closest = min(closest, d)
-        if d <= hit_radius:
-            return True, t, closest
-        if dpos[2] > target[2] + 0.5:  # dart has flown past the target plane
-            break
-        t += dt
-    return False, t, closest
+    return (closest <= hit_radius, t_ca, closest)
