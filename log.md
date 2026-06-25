@@ -6,6 +6,14 @@ Decisions, progress notes, session diary. Most recent first.
 
 ---
 
+## 2026-06-25 — M5: from-scratch CNN target discriminator | own conv net, NumPy-verified vs PyTorch
+- **Context:** user asked "could we add a CNN" — clarified AEGIS already IS a CNN project (YOLOv11 detector + M4 custom training). Chose to add a *from-scratch* CNN (build our own, not call a library) as the learning-rich option (purpose b; fits PROMETHEUS/FOUNDRY first-principles ethos).
+- **`aegis/cnn/`:** `conv.py` — pure NumPy conv2d/relu/max_pool2d/linear/softmax (the operations by hand, tested against paper-computed values). `model.py` — our own nn.Sequential (2 conv blocks + 2 FC) + `forward_numpy()` that re-runs the forward from trained weights using conv.py. `patches.py` — synthetic 32×32 labelled patches (designated RED balloon = target=1; wrong-colour balloons / shapes / background = 0; forces learning colour+shape, not balloon-vs-noise). `discriminator.py` — TargetDiscriminator inference (lazy torch) + pure `is_valid_target`. `train_cnn.py` CLI.
+- **The proof:** `test_cnn_model.py` (pytest.importorskip torch) asserts forward_numpy == PyTorch forward to atol 1e-4; verified on trained weights too (max diff 4.2e-7). Plus a learns-the-target test (val acc > 0.8). Trained run: loss 0.60→0.03, val acc 96%→99.5% in 12 CPU epochs. Discriminator scores red balloon 1.000, non-target 0.003.
+- **Role:** a learned gate on top of detector+SafetyGate — confirms the *designated* target before fireable.
+- **Testing pattern:** pure NumPy ops in the always-run suite; torch tests gated by importorskip (run here, skip on torch-free machines). 116 tests.
+- **Viz:** `tools/cnn_viz.py` → `docs/media/cnn_discriminator.png` (patch grid + learning curve). README: M5 milestone + gallery image + "How it works" CNN paragraph.
+
 ## 2026-06-25 — Three features: safety FSM, sharper fire-control, multi-target tracking | 3 commits, 106 tests
 - **Safety state machine** (`safety_fsm.py`): SAFE/ARMED/TRACKING/FIRING/latching-FAULT over the existing SafetyGate. Failsafes: perception watchdog (stale vision→FAULT), temporal confirmation (N consecutive CLEAR frames before a shot), angular no-fire zones, rate limit, magazine count, full audit log. +12 tests.
 - **Sharper fire-control** (3 upgrades): (a) **latency compensation** — `firing_solution(latency=)` predicts target through pipeline delay before launch (100ms→+3.5° lead at 5m); (b) **α-β-γ constant-accel filter** (`estimator.AlphaBetaGamma`/`Estimator3DCA`) for maneuvering targets; (c) **numerical solver** (`firing_solution(refine=)`) flies the shot + nulls closest-approach miss — closed the heavy-drag gap (k=0.15@5m: 16cm miss→1cm hit). `simulate_shot`/`firing_solution` now take `accel`; `FireControlTracker` gains `latency_s`+`refine` and auto-uses accel from a CA estimator. +7 tests; proven hits an accelerating target end-to-end.

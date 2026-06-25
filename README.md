@@ -3,7 +3,7 @@
 > *A computer-vision turret that tracks anything and fires only on inanimate targets — with the safety architecture as a first-class, testable feature, not an afterthought.*
 
 ![milestones](https://img.shields.io/badge/software-M1--M4_complete-3fb950)
-![tests](https://img.shields.io/badge/tests-106_passing-3fb950)
+![tests](https://img.shields.io/badge/tests-116_passing-3fb950)
 ![python](https://img.shields.io/badge/python-3.13-3776ab)
 ![model](https://img.shields.io/badge/detector-YOLOv11-blue)
 ![edge](https://img.shields.io/badge/edge-Jetson_Orin_Nano-76b900)
@@ -31,6 +31,11 @@ Three reasons it exists: **(a)** it's a genuinely fun build, **(b)** it's the cl
 |:--:|
 | ![firecontrol](docs/media/firecontrol.gif) |
 | With stereo range + dart speed, the solver leads the moving target and aims above for gravity; the solution dart hits where naive aim-at-target misses. |
+
+| A CNN built from scratch, learning the designated target |
+|:--:|
+| ![cnn](docs/media/cnn_discriminator.png) |
+| Our own conv net (hand-written, verified against PyTorch) trains on synthetic patches to tell the red balloon from wrong-colour balloons and distractors — 99% val accuracy. |
 
 > **▶ Interactive demo** — tune the PID gains, drive the turret sim, and play with the safety gate live in your browser. The page runs the **actual** `controller.py` / `simulator.py` / `safety.py` via Pyodide — the same code that flies the turret. See [Running the demo](#-interactive-demo).
 
@@ -64,6 +69,8 @@ Each frame: the detector finds objects → the tracker picks one and computes a 
 **Sharper fire-control (M2.7).** Three refinements addressing real limits: **latency compensation** predicts the target through the perception+actuation delay before launch (so the lead covers system latency, not just dart flight — a 100 ms pipeline adds ~3.5° of lead at 5 m); a **constant-acceleration α-β-γ filter** (`estimator.py`) follows a *maneuvering* target the constant-velocity model can't; and a **numerical solver** (`refine=`) flies the shot and nulls the closest-approach miss, closing the heavy-drag gap the closed-form seed leaves (k=0.15 at 5 m: a 16 cm miss → a 1 cm hit).
 
 **Multi-target tracking (MOT).** `mot.py` turns per-frame detections into persistent tracks with stable IDs via predict → IoU-match → update → age-out. Tracks confirm only after several hits (rejects one-frame false positives) and **coast on their velocity estimate through brief occlusion**, so a momentary miss keeps the lock and the ID instead of dropping or re-numbering it. `prioritize()` picks which confirmed track to engage — the foundation for tracking a crowd and choosing one.
+
+**A CNN from scratch (M5).** The detector is already a CNN (YOLOv11), but it's a black box we fine-tune. `aegis/cnn/` adds a conv net we **build ourselves** — our own architecture (two conv blocks + two FC layers) and training loop — as a learned **target discriminator**: even when YOLO says "balloon", this confirms it's the *designated* (red) one before it's fireable. It trains on the synthetic patches `cnn/patches.py` generates (CPU, seconds → 99% val accuracy). To make "from scratch" literal, the conv/pool/linear ops are also re-implemented **in pure NumPy** (`cnn/conv.py`, unit-tested against hand-computed values), and a test asserts that NumPy forward pass reproduces PyTorch's output on the trained weights to ~1e-7 — the proof we understand the CNN, not just call it.
 
 ## Safety model — *enforced in code, not just documented*
 
@@ -114,6 +121,7 @@ stateDiagram-v2
 | **M3** | Actuation layer + safety gate (mock-tested; real drivers stubbed) | ✅ software done · ⏳ hardware |
 | **M3.1** | Safety state machine + failsafes (watchdog, temporal confirmation, no-fire zones, rate/magazine) | ✅ done |
 | **M4** | Custom detector: dataset → train → ONNX/TensorRT export | ✅ pipeline done · ⏳ real data |
+| **M5** | From-scratch CNN target discriminator (own conv net, NumPy-verified) | ✅ done |
 
 Remaining work is real-world, not code: order the kit ([docs/HARDWARE.md](docs/HARDWARE.md)), capture+label a real dataset, build the TensorRT engine on the Jetson.
 
@@ -129,7 +137,8 @@ python main.py                            # M1+M2: live tracking + commanded ser
 python main.py --classes "sports ball" --turret mock   # M3: full safety + fire loop, no hardware
 python sim.py --plot                      # M2: tune the PID, save response plots
 python train.py --synthetic 16 --epochs 1 --device cpu # M4: smoke-test the training pipeline
-pytest                                     # 106 headless tests, no GPU needed
+python train_cnn.py                       # M5: train the from-scratch CNN (CPU, ~99% val acc)
+pytest                                     # 116 headless tests (torch-gated ones skip without torch)
 ```
 In the live window: `a` arm/disarm · `f` fire (only if the gate says CLEAR) · `q` quit.
 
@@ -152,6 +161,7 @@ aegis/
 ├── main.py                  # CLI: live tracking (M1) + controller (M2) + turret (M3)
 ├── sim.py                   # CLI: M2 control simulator & PID tuner
 ├── capture.py train.py export.py   # M4: dataset capture, training, edge export
+├── train_cnn.py             # M5: train the from-scratch CNN discriminator
 ├── docs/
 │   ├── media/               # README GIFs (generated by tools/make_gifs.py)
 │   ├── site/                # interactive Pyodide demo
@@ -165,6 +175,7 @@ aegis/
 │   ├── stereo.py            # stereo range from disparity (pure — tested)
 │   ├── ballistics.py        # intercept + gravity + drag + latency + numerical solver (pure — tested)
 │   ├── mot.py               # SORT multi-target tracking: IDs, occlusion, prioritise (pure — tested)
+│   ├── cnn/                 # M5 from-scratch CNN: numpy conv ops, model, discriminator
 │   ├── simulator.py         # closed-loop camera/target model + tracking metrics
 │   ├── safety.py            # SafetyGate fire-authorisation logic (pure — tested)
 │   ├── safety_fsm.py        # safety state machine + failsafes (pure — tested)
@@ -172,7 +183,7 @@ aegis/
 │   ├── config.py detector.py overlay.py pipeline.py   # config, YOLO adapter, HUD, loop
 │   ├── hardware/            # driver ABCs + servo mapping, mocks, PCA9685/Nerf (lazy)
 │   └── data/                # M4: YOLO label/split/data.yaml (pure), builder, synth
-└── tests/                   # tracker, controller, safety, hardware, dataset — 106 pure tests
+└── tests/                   # tracker, controller, safety, hardware, dataset — 116 tests
 ```
 
 ## Design notes
