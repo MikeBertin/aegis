@@ -3,7 +3,7 @@
 > *A computer-vision turret that tracks anything and fires only on inanimate targets — with the safety architecture as a first-class, testable feature, not an afterthought.*
 
 ![milestones](https://img.shields.io/badge/software-M1--M4_complete-3fb950)
-![tests](https://img.shields.io/badge/tests-139_passing-3fb950)
+![tests](https://img.shields.io/badge/tests-145_passing-3fb950)
 ![python](https://img.shields.io/badge/python-3.13-3776ab)
 ![model](https://img.shields.io/badge/detector-YOLOv11-blue)
 ![edge](https://img.shields.io/badge/edge-Jetson_Orin_Nano-76b900)
@@ -37,6 +37,11 @@ Three reasons it exists: **(a)** it's a genuinely fun build, **(b)** it's the cl
 | ![cnn](docs/media/cnn_discriminator.png) |
 | Our own conv net (hand-written, verified against PyTorch) trains on synthetic patches to tell the red balloon from wrong-colour balloons and distractors — 99% val accuracy. |
 
+| Block-matching stereo — disparity (→ depth) from an image pair |
+|:--:|
+| ![stereo](docs/media/stereo_blockmatch.png) |
+| Our matcher slides a window along each row to recover the per-pixel disparity; the closer square pops out (the edge speckle is the real occlusion artifact). Disparity → depth via the stereo geometry. |
+
 > **▶ Interactive demo** — tune the PID gains, drive the turret sim, and play with the safety gate live in your browser. The page runs the **actual** `controller.py` / `simulator.py` / `safety.py` via Pyodide — the same code that flies the turret. See [Running the demo](#-interactive-demo).
 
 ---
@@ -64,7 +69,7 @@ Each frame: the detector finds objects → the tracker picks one and computes a 
 
 **Predictive tracking (M2.5).** Pure feedback always trails a moving target — it needs a position error to generate the velocity to keep up. `tracking.py` removes that lag the way a gun director does: an **α-β filter** (`estimator.py`) smooths the target's position and velocity; the velocity is fed *forward* straight to the servos (the PID only trims the residual), and the aim is **led** ahead by the dart's flight-time so a moving target can actually be hit. In sim this cuts steady-state tracking lag by **~68%** (5.8° → 1.9° RMS), and on a constant-velocity target the aim leads by exactly `velocity × lead_time`.
 
-**Stereo ranging + fire-control (M2.6).** A fixed lead time is a guess; the physical version computes it. `stereo.py` recovers **range** from a calibrated stereo pair (`Z = focal·baseline / disparity`, with range error growing as the *square* of distance). `ballistics.py` then solves the real fire-control problem: given range, dart muzzle speed and target velocity, find the launch direction and time-of-flight where dart and target **meet** — leading horizontally *and* aiming above to beat gravity drop (the classic implicit moving-interceptor problem, solved by iteration). A **drag model** (`DartModel`) captures the foam dart's deceleration (`v = v₀·e^(-k·s)`), which stretches the flight time and so *increases* both the lead and the hold-over. The whole chain is wired into the live loop by `FireControlTracker` — bearing + stereo range → 3D target state → firing solution → servo command — and validated by a hit/miss shot simulation: the turret aims so a dart *with gravity and drag* hits the moving target where naive aim-at-target misses by tens of centimetres.
+**Stereo ranging + fire-control (M2.6).** A fixed lead time is a guess; the physical version computes it. `stereo.py` recovers **range** from a calibrated stereo pair (`Z = focal·baseline / disparity`, with range error growing as the *square* of distance), and `stereo_match.py` computes the disparity itself by **block matching** an image pair (recovered, not assumed). `ballistics.py` then solves the real fire-control problem: given range, dart muzzle speed and target velocity, find the launch direction and time-of-flight where dart and target **meet** — leading horizontally *and* aiming above to beat gravity drop (the classic implicit moving-interceptor problem, solved by iteration). A **drag model** (`DartModel`) captures the foam dart's deceleration (`v = v₀·e^(-k·s)`), which stretches the flight time and so *increases* both the lead and the hold-over. The whole chain is wired into the live loop by `FireControlTracker` — bearing + stereo range → 3D target state → firing solution → servo command — and validated by a hit/miss shot simulation: the turret aims so a dart *with gravity and drag* hits the moving target where naive aim-at-target misses by tens of centimetres.
 
 **Sharper fire-control (M2.7).** Three refinements addressing real limits: **latency compensation** predicts the target through the perception+actuation delay before launch (so the lead covers system latency, not just dart flight — a 100 ms pipeline adds ~3.5° of lead at 5 m); a **constant-acceleration α-β-γ filter** (`estimator.py`) follows a *maneuvering* target the constant-velocity model can't; and a **numerical solver** (`refine=`) flies the shot and nulls the closest-approach miss, closing the heavy-drag gap the closed-form seed leaves (k=0.15 at 5 m: a 16 cm miss → a 1 cm hit).
 
@@ -82,7 +87,7 @@ A deliberate theme: the algorithms are **hand-written and tested**, not imported
 | **α-β / α-β-γ filters** (velocity / acceleration) | `estimator.py` |
 | **Kalman filter** (covariance, optimal gain) | `kalman.py` |
 | **Ballistic intercept solver** (gravity, drag, latency, numerical refine) | `ballistics.py` |
-| **Stereo geometry** (range from disparity) | `stereo.py` |
+| **Stereo** — geometry (range from disparity) + block-matching disparity | `stereo.py`, `stereo_match.py` |
 | **SORT multi-target tracking** (IoU matching, lifecycle) | `mot.py` |
 | **Non-max suppression** (greedy + soft-NMS, matches torchvision) | `nms.py` |
 | **Safety state machine** + failsafes | `safety_fsm.py` |
@@ -158,7 +163,7 @@ python sim.py --plot                      # M2: tune the PID, save response plot
 python train.py --synthetic 16 --epochs 1 --device cpu # M4: smoke-test the training pipeline
 python train_cnn.py                       # M5: train the from-scratch CNN (PyTorch)
 python train_scratch.py                   # M5: train it with ZERO autograd (pure-NumPy backprop)
-pytest                                     # 139 headless tests (torch-gated ones skip without torch)
+pytest                                     # 145 headless tests (torch-gated ones skip without torch)
 ```
 In the live window: `a` arm/disarm · `f` fire (only if the gate says CLEAR) · `q` quit.
 
@@ -194,6 +199,7 @@ aegis/
 │   ├── estimator.py         # α-β velocity + α-β-γ accel filters (pure — tested)
 │   ├── tracking.py          # feedforward+lead + FireControlTracker (pure — tested)
 │   ├── stereo.py            # stereo range from disparity (pure — tested)
+│   ├── stereo_match.py      # block-matching disparity from an image pair (pure — tested)
 │   ├── ballistics.py        # intercept + gravity + drag + latency + numerical solver (pure — tested)
 │   ├── mot.py               # SORT multi-target tracking: IDs, occlusion, prioritise (pure — tested)
 │   ├── nms.py               # non-max suppression: greedy + soft-NMS (pure — tested vs torchvision)
@@ -206,7 +212,7 @@ aegis/
 │   ├── config.py detector.py overlay.py pipeline.py   # config, YOLO adapter, HUD, loop
 │   ├── hardware/            # driver ABCs + servo mapping, mocks, PCA9685/Nerf (lazy)
 │   └── data/                # M4: YOLO label/split/data.yaml (pure), builder, synth
-└── tests/                   # tracker, controller, safety, hardware, dataset — 139 tests
+└── tests/                   # tracker, controller, safety, hardware, dataset — 145 tests
 ```
 
 ## Design notes

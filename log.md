@@ -6,6 +6,13 @@ Decisions, progress notes, session diary. Most recent first.
 
 ---
 
+## 2026-06-26 — Block-matching stereo from scratch | compute disparity, not just geometry | the real capability gain
+- **`stereo_match.py`:** `block_match_disparity` (for each disparity d, shift right image, per-pixel SAD/SSD cost, box-sum over the block window → cost volume; per-pixel argmin = disparity). Own `_box_sum` (k² shifted adds, no library filter). `disparity_to_depth` (vectorised, uses StereoRig). `make_synthetic_pair` (rectified pair w/ known per-region disparity: foreground square closer than background).
+- **Bug found+fixed during testing:** my synthetic pair had the disparity sign flipped (put the right-image feature shifted right; closer objects shift LEFT in the right view). Fixed → recovers bg≈4, fg≈16/18.
+- **Tests:** +6 (box-sum vs brute force, recovers known disparity per region SAD+SSD, even-block rejected, disparity→depth geometry, closer-object-nearer-depth). 145 green.
+- **Viz:** `tools/stereo_viz.py` → `docs/media/stereo_blockmatch.png` (left/right/true/recovered). The square's right-edge speckle = the real occlusion artifact (foreground hides background → no valid match), called out honestly in the caption.
+- This is the one from-scratch build that's an actual capability gain (we had Z=fb/d geometry; now we compute d from an image pair). Remaining from-scratch idea: Hungarian assignment for optimal MOT matching.
+
 ## 2026-06-26 — NMS from scratch | greedy + class-aware + soft-NMS | matches torchvision
 - **`nms.py`:** greedy `nms` (sort by score, keep top, suppress lower boxes with IoU>thr, repeat), `nms_per_class` (class-aware over Detections — person box never suppresses a balloon), `soft_nms` (Gaussian/linear score decay instead of hard drop, for crowded scenes). Reuses `safety.iou`. Pure (soft_nms uses math.exp, no numpy).
 - **Proof:** `test_matches_torchvision_nms` (importorskip torchvision) — our greedy NMS == `torchvision.ops.nms` on 40 random boxes. +7 tests, 139 green.
