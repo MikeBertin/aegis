@@ -6,6 +6,14 @@ Decisions, progress notes, session diary. Most recent first.
 
 ---
 
+## 2026-06-26 — Third demo: ③ Vision/CNN | real from-scratch NumPy CNN running in-browser
+- **Key enabler:** our CNN forward is pure NumPy (cnn/conv.py), and NumPy runs in Pyodide → the browser can run the *actual* from-scratch CNN (parallel to demos 1/2 running the real controller/safety).
+- **`tools/export_cnn.py`:** trains the discriminator (99.3% val), exports `docs/site/cnn_weights.js` (282KB, rounded) + `docs/site/cnn_conv.js` (the real conv.py source as a string).
+- **`docs/site/cnn.html` + `cnn.js`:** boots Pyodide + loadPackage('numpy'), writes conv.py to FS, imports it, sets weights. Two panels: ① convolution playground (edge/sharpen/blur/sobel kernels applied via our conv2d → feature map) + ② live classifier (JS draws a 32×32 balloon in chosen colour/shape → BGR channel-first flat → forward in NumPy → conv-1 feature maps + TARGET/not verdict + probability bar). Channel order BGR to match cv2 training.
+- **Bug found via the demo (Mike spotted it):** a RED SQUARE was classified as a balloon (1.00). Root cause: training negatives almost never included *red* non-balloon shapes, so the net learned "red == target" and ignored shape — my earlier "learned colour AND shape" claim was false. My own check had been buggy too (tested a yellow square, not red). **Fix:** patches.py negatives now include red squares/triangles (red ~50% of shape distractors). Retrained + re-exported weights → red square 0.00, red balloon 0.99, blue balloon 0.00 (val ~99%). Now genuinely uses colour AND shape. Verified in browser via the real controls.
+- Lesson logged: a model learns the *easiest* discriminative cue; the negative set must cover "right colour, wrong shape" or it won't learn shape. Good ML-hygiene example for the portfolio.
+- **Evolution nav:** added ③ to all three pages (index/firecontrol/cnn). README demo section now lists 3 demos.
+
 ## 2026-06-25 — M5: from-scratch CNN target discriminator | own conv net, NumPy-verified vs PyTorch
 - **Context:** user asked "could we add a CNN" — clarified AEGIS already IS a CNN project (YOLOv11 detector + M4 custom training). Chose to add a *from-scratch* CNN (build our own, not call a library) as the learning-rich option (purpose b; fits PROMETHEUS/FOUNDRY first-principles ethos).
 - **`aegis/cnn/`:** `conv.py` — pure NumPy conv2d/relu/max_pool2d/linear/softmax (the operations by hand, tested against paper-computed values). `model.py` — our own nn.Sequential (2 conv blocks + 2 FC) + `forward_numpy()` that re-runs the forward from trained weights using conv.py. `patches.py` — synthetic 32×32 labelled patches (designated RED balloon = target=1; wrong-colour balloons / shapes / background = 0; forces learning colour+shape, not balloon-vs-noise). `discriminator.py` — TargetDiscriminator inference (lazy torch) + pure `is_valid_target`. `train_cnn.py` CLI.

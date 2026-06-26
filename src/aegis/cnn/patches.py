@@ -2,12 +2,13 @@
 
 Two classes:
     1 = fireable target  — a RED balloon (the designated target)
-    0 = not a target     — a balloon of the wrong colour, a non-balloon shape,
-                           or plain background
+    0 = not a target     — a balloon of the wrong colour, OR a non-balloon shape
+                           (often RED), OR plain background
 
-So the net must learn *colour and shape together* ("only the red balloon"),
-not a trivial balloon-vs-noise cue. Patches are 32×32, channel-first, [0,1].
-Uses cv2/numpy (no torch) — generating data needs no model.
+The negatives deliberately include plenty of **red non-balloon shapes** (red
+squares/triangles). Without them the net just learns "red == target" and a red
+square fools it; with them it must use *colour AND shape* together. Patches are
+32×32, channel-first, [0,1]. Uses cv2/numpy (no torch) — data needs no model.
 """
 
 from __future__ import annotations
@@ -39,24 +40,31 @@ def make_patch(label: int, rng: random.Random | None = None):
     cx = rng.randint(rx + 1, PATCH - rx - 1)
     cy = rng.randint(ry + 1, PATCH - ry - 1)
 
+    red = (rng.randint(0, 50), rng.randint(0, 50), rng.randint(180, 255))  # BGR red
+
     if label == 1:
-        # Designated target: a RED balloon (BGR red, with some variation).
-        colour = (rng.randint(0, 50), rng.randint(0, 50), rng.randint(180, 255))
-        _balloon(img, cx, cy, rx, ry, colour, rng)
+        # Designated target: a RED balloon.
+        _balloon(img, cx, cy, rx, ry, red, rng)
     else:
         kind = rng.random()
-        if kind < 0.5:
-            # Wrong-colour balloon (blue / green / yellow) — same shape, not target.
+        if kind < 0.35:
+            # Wrong-colour balloon — same shape, wrong colour.
             colour = rng.choice([
                 (rng.randint(180, 255), 0, 0),     # blue
                 (0, rng.randint(180, 255), 0),     # green
                 (0, rng.randint(180, 255), rng.randint(180, 255)),  # yellow
             ])
             _balloon(img, cx, cy, rx, ry, colour, rng)
-        elif kind < 0.8:
-            # Non-balloon shape in a random colour (incl. red rectangles).
-            colour = (rng.randint(0, 255), rng.randint(0, 255), rng.randint(0, 255))
-            cv2.rectangle(img, (cx - rx, cy - ry), (cx + rx, cy + ry), colour, -1)
+        elif kind < 0.85:
+            # Non-balloon shape — RED half the time, so the net can't rely on
+            # colour alone. Square/rectangle or triangle.
+            colour = red if rng.random() < 0.5 else (
+                rng.randint(0, 255), rng.randint(0, 255), rng.randint(0, 255))
+            if rng.random() < 0.6:
+                cv2.rectangle(img, (cx - rx, cy - ry), (cx + rx, cy + ry), colour, -1)
+            else:
+                pts = np.array([[cx, cy - ry], [cx - rx, cy + ry], [cx + rx, cy + ry]])
+                cv2.fillPoly(img, [pts], colour)
         # else: plain background (no object)
 
     x = img.astype(np.float32) / 255.0
