@@ -3,7 +3,7 @@
 > *A computer-vision turret that tracks anything and fires only on inanimate targets — with the safety architecture as a first-class, testable feature, not an afterthought.*
 
 ![milestones](https://img.shields.io/badge/software-M1--M4_complete-3fb950)
-![tests](https://img.shields.io/badge/tests-116_passing-3fb950)
+![tests](https://img.shields.io/badge/tests-132_passing-3fb950)
 ![python](https://img.shields.io/badge/python-3.13-3776ab)
 ![model](https://img.shields.io/badge/detector-YOLOv11-blue)
 ![edge](https://img.shields.io/badge/edge-Jetson_Orin_Nano-76b900)
@@ -70,7 +70,25 @@ Each frame: the detector finds objects → the tracker picks one and computes a 
 
 **Multi-target tracking (MOT).** `mot.py` turns per-frame detections into persistent tracks with stable IDs via predict → IoU-match → update → age-out. Tracks confirm only after several hits (rejects one-frame false positives) and **coast on their velocity estimate through brief occlusion**, so a momentary miss keeps the lock and the ID instead of dropping or re-numbering it. `prioritize()` picks which confirmed track to engage — the foundation for tracking a crowd and choosing one.
 
-**A CNN from scratch (M5).** The detector is already a CNN (YOLOv11), but it's a black box we fine-tune. `aegis/cnn/` adds a conv net we **build ourselves** — our own architecture (two conv blocks + two FC layers) and training loop — as a learned **target discriminator**: even when YOLO says "balloon", this confirms it's the *designated* (red) one before it's fireable. It trains on the synthetic patches `cnn/patches.py` generates (CPU, seconds → 99% val accuracy). To make "from scratch" literal, the conv/pool/linear ops are also re-implemented **in pure NumPy** (`cnn/conv.py`, unit-tested against hand-computed values), and a test asserts that NumPy forward pass reproduces PyTorch's output on the trained weights to ~1e-7 — the proof we understand the CNN, not just call it.
+**A CNN from scratch (M5).** The detector is already a CNN (YOLOv11), but it's a black box we fine-tune. `aegis/cnn/` adds a conv net we **build ourselves** — our own architecture (two conv blocks + two FC layers) — as a learned **target discriminator**: even when YOLO says "balloon", this confirms it's the *designated* (red) one before it's fireable. "From scratch" is literal here: the conv/pool/linear **forward** ops are pure NumPy (`cnn/conv.py`, matching PyTorch to ~1e-7), *and* the **backward** pass + an Adam optimiser are hand-written too (`cnn/autograd.py`), gradient-checked against finite differences — so the net is trained with **zero autograd** (`train_scratch.py` → 99.7% val accuracy in ~5 s of pure NumPy). Nothing about this CNN is a black box.
+
+## Built from first principles
+
+A deliberate theme: the algorithms are **hand-written and tested**, not imported. Only the heavy lifting (YOLO inference, training autograd for the *fine-tuned* detector) leans on libraries.
+
+| Component | From scratch |
+|---|---|
+| **PID control** + tuned gains | `controller.py` |
+| **α-β / α-β-γ filters** (velocity / acceleration) | `estimator.py` |
+| **Kalman filter** (covariance, optimal gain) | `kalman.py` |
+| **Ballistic intercept solver** (gravity, drag, latency, numerical refine) | `ballistics.py` |
+| **Stereo geometry** (range from disparity) | `stereo.py` |
+| **SORT multi-target tracking** (IoU matching, lifecycle) | `mot.py` |
+| **Safety state machine** + failsafes | `safety_fsm.py` |
+| **CNN forward** (conv / pool / linear in NumPy) | `cnn/conv.py` |
+| **CNN backprop + Adam** (trained with zero autograd) | `cnn/autograd.py` |
+
+Every one is covered by unit tests — including a finite-difference **gradient check** on the backprop and a **NumPy-vs-PyTorch** equivalence check on the forward pass.
 
 ## Safety model — *enforced in code, not just documented*
 
@@ -137,8 +155,9 @@ python main.py                            # M1+M2: live tracking + commanded ser
 python main.py --classes "sports ball" --turret mock   # M3: full safety + fire loop, no hardware
 python sim.py --plot                      # M2: tune the PID, save response plots
 python train.py --synthetic 16 --epochs 1 --device cpu # M4: smoke-test the training pipeline
-python train_cnn.py                       # M5: train the from-scratch CNN (CPU, ~99% val acc)
-pytest                                     # 116 headless tests (torch-gated ones skip without torch)
+python train_cnn.py                       # M5: train the from-scratch CNN (PyTorch)
+python train_scratch.py                   # M5: train it with ZERO autograd (pure-NumPy backprop)
+pytest                                     # 132 headless tests (torch-gated ones skip without torch)
 ```
 In the live window: `a` arm/disarm · `f` fire (only if the gate says CLEAR) · `q` quit.
 
@@ -176,7 +195,8 @@ aegis/
 │   ├── stereo.py            # stereo range from disparity (pure — tested)
 │   ├── ballistics.py        # intercept + gravity + drag + latency + numerical solver (pure — tested)
 │   ├── mot.py               # SORT multi-target tracking: IDs, occlusion, prioritise (pure — tested)
-│   ├── cnn/                 # M5 from-scratch CNN: numpy conv ops, model, discriminator
+│   ├── cnn/                 # M5 from-scratch CNN: conv ops + backprop (autograd.py), model, discriminator
+│   ├── kalman.py            # from-scratch Kalman filter (pure NumPy — tested)
 │   ├── simulator.py         # closed-loop camera/target model + tracking metrics
 │   ├── safety.py            # SafetyGate fire-authorisation logic (pure — tested)
 │   ├── safety_fsm.py        # safety state machine + failsafes (pure — tested)
@@ -184,7 +204,7 @@ aegis/
 │   ├── config.py detector.py overlay.py pipeline.py   # config, YOLO adapter, HUD, loop
 │   ├── hardware/            # driver ABCs + servo mapping, mocks, PCA9685/Nerf (lazy)
 │   └── data/                # M4: YOLO label/split/data.yaml (pure), builder, synth
-└── tests/                   # tracker, controller, safety, hardware, dataset — 116 tests
+└── tests/                   # tracker, controller, safety, hardware, dataset — 132 tests
 ```
 
 ## Design notes

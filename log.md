@@ -6,6 +6,13 @@ Decisions, progress notes, session diary. Most recent first.
 
 ---
 
+## 2026-06-26 — Two from-scratch builds: backprop (zero-autograd training) + Kalman filter
+- **Backprop from scratch** (`cnn/autograd.py`): hand-derived backward passes for conv (im2col/col2im), max-pool, ReLU, linear, softmax-cross-entropy + an Adam optimiser. `ScratchNet` = our architecture's forward+backward. **Gradient-checked vs finite differences** (the proof) + im2col conv == the loop reference in conv.py. `train_scratch.py` trains the discriminator with **zero autograd** (pure NumPy) → 99.7% val in ~5s. The CNN is now first-principles end-to-end (forward + backward + optimiser all hand-written).
+- **Kalman from scratch** (`kalman.py`): general `KalmanFilter` (predict/update with covariance P + optimal gain K), `CVKalman1D` (constant-velocity, variable dt), `TargetKalman3D` (drop-in for Estimator3D, returns (pos,vel), plus `position_std()` uncertainty — ties to stereo depth-error). Verified `FireControlTracker` hits using the Kalman estimator (drop-in works).
+- **Tests:** +16 (8 gradient checks, 8 kalman incl. covariance-shrinks/grows, smoothing, 3D drop-in). 132 green. Both pure NumPy → run in the always-on suite (no torch).
+- **README:** added a "Built from first principles" table listing every hand-built algorithm (PID, α-β/α-β-γ, Kalman, ballistics, stereo, SORT, safety FSM, CNN fwd+bwd). Strong portfolio statement.
+- User is clearly enjoying the from-scratch / first-principles track (purpose b). Next candidates if asked: Hungarian assignment, block-matching stereo, classical CV detector, NMS.
+
 ## 2026-06-26 — Third demo: ③ Vision/CNN | real from-scratch NumPy CNN running in-browser
 - **Key enabler:** our CNN forward is pure NumPy (cnn/conv.py), and NumPy runs in Pyodide → the browser can run the *actual* from-scratch CNN (parallel to demos 1/2 running the real controller/safety).
 - **`tools/export_cnn.py`:** trains the discriminator (99.3% val), exports `docs/site/cnn_weights.js` (282KB, rounded) + `docs/site/cnn_conv.js` (the real conv.py source as a string).
