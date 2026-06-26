@@ -9,6 +9,7 @@ sys.path.insert(0, "src")
 from aegis.ballistics import DartModel, simulate_shot  # noqa: E402
 from aegis.controller import default_pan_tilt  # noqa: E402
 from aegis.estimator import Estimator3D, Estimator3DCA  # noqa: E402
+from aegis.kalman import TargetKalman3D  # noqa: E402
 from aegis.tracking import FireControlTracker  # noqa: E402
 
 HFOV, VFOV = 60.0, 37.0
@@ -47,6 +48,18 @@ def test_firecontrol_aim_hits_moving_target_with_gravity_and_drag():
     ctrl, last_p = _run(dart, p0, vel, gravity=True)
     hit, _, close = simulate_shot(ctrl.pan, ctrl.tilt, dart, last_p, vel, gravity=True)
     assert hit, f"commanded aim missed by {close*100:.0f} cm"
+
+
+def test_firecontrol_with_kalman_estimator_hits():
+    # The from-scratch Kalman filter is a drop-in estimator for the fire-control
+    # loop — it must still produce a hitting solution on a moving target.
+    dart = DartModel(20.0, 0.05)
+    ctrl = default_pan_tilt(tilt_sign=-1)
+    fct = FireControlTracker(ctrl, dart, TargetKalman3D(meas_var=0.02), gravity=True)
+    p0, vel = (-0.6, 0.1, 3.0), (0.6, 0.0, 0.0)
+    ctrl, last_p = _run(dart, p0, vel, gravity=True, seconds=2.5, tracker=fct)
+    hit, _, close = simulate_shot(ctrl.pan, ctrl.tilt, dart, last_p, vel, gravity=True)
+    assert hit, f"missed by {close*100:.0f} cm"
 
 
 def test_firecontrol_leads_a_crossing_target():
