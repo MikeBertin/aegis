@@ -3,7 +3,7 @@
 > *A computer-vision turret that tracks anything and fires only on inanimate targets — with the safety architecture as a first-class, testable feature, not an afterthought.*
 
 ![milestones](https://img.shields.io/badge/software-M1--M4_complete-3fb950)
-![tests](https://img.shields.io/badge/tests-132_passing-3fb950)
+![tests](https://img.shields.io/badge/tests-139_passing-3fb950)
 ![python](https://img.shields.io/badge/python-3.13-3776ab)
 ![model](https://img.shields.io/badge/detector-YOLOv11-blue)
 ![edge](https://img.shields.io/badge/edge-Jetson_Orin_Nano-76b900)
@@ -84,6 +84,7 @@ A deliberate theme: the algorithms are **hand-written and tested**, not imported
 | **Ballistic intercept solver** (gravity, drag, latency, numerical refine) | `ballistics.py` |
 | **Stereo geometry** (range from disparity) | `stereo.py` |
 | **SORT multi-target tracking** (IoU matching, lifecycle) | `mot.py` |
+| **Non-max suppression** (greedy + soft-NMS, matches torchvision) | `nms.py` |
 | **Safety state machine** + failsafes | `safety_fsm.py` |
 | **CNN forward** (conv / pool / linear in NumPy) | `cnn/conv.py` |
 | **CNN backprop + Adam** (trained with zero autograd) | `cnn/autograd.py` |
@@ -157,7 +158,7 @@ python sim.py --plot                      # M2: tune the PID, save response plot
 python train.py --synthetic 16 --epochs 1 --device cpu # M4: smoke-test the training pipeline
 python train_cnn.py                       # M5: train the from-scratch CNN (PyTorch)
 python train_scratch.py                   # M5: train it with ZERO autograd (pure-NumPy backprop)
-pytest                                     # 132 headless tests (torch-gated ones skip without torch)
+pytest                                     # 139 headless tests (torch-gated ones skip without torch)
 ```
 In the live window: `a` arm/disarm · `f` fire (only if the gate says CLEAR) · `q` quit.
 
@@ -195,6 +196,7 @@ aegis/
 │   ├── stereo.py            # stereo range from disparity (pure — tested)
 │   ├── ballistics.py        # intercept + gravity + drag + latency + numerical solver (pure — tested)
 │   ├── mot.py               # SORT multi-target tracking: IDs, occlusion, prioritise (pure — tested)
+│   ├── nms.py               # non-max suppression: greedy + soft-NMS (pure — tested vs torchvision)
 │   ├── cnn/                 # M5 from-scratch CNN: conv ops + backprop (autograd.py), model, discriminator
 │   ├── kalman.py            # from-scratch Kalman filter (pure NumPy — tested)
 │   ├── simulator.py         # closed-loop camera/target model + tracking metrics
@@ -204,7 +206,7 @@ aegis/
 │   ├── config.py detector.py overlay.py pipeline.py   # config, YOLO adapter, HUD, loop
 │   ├── hardware/            # driver ABCs + servo mapping, mocks, PCA9685/Nerf (lazy)
 │   └── data/                # M4: YOLO label/split/data.yaml (pure), builder, synth
-└── tests/                   # tracker, controller, safety, hardware, dataset — 132 tests
+└── tests/                   # tracker, controller, safety, hardware, dataset — 139 tests
 ```
 
 ## Design notes

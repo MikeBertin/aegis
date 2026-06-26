@@ -6,6 +6,11 @@ Decisions, progress notes, session diary. Most recent first.
 
 ---
 
+## 2026-06-26 — NMS from scratch | greedy + class-aware + soft-NMS | matches torchvision
+- **`nms.py`:** greedy `nms` (sort by score, keep top, suppress lower boxes with IoU>thr, repeat), `nms_per_class` (class-aware over Detections — person box never suppresses a balloon), `soft_nms` (Gaussian/linear score decay instead of hard drop, for crowded scenes). Reuses `safety.iou`. Pure (soft_nms uses math.exp, no numpy).
+- **Proof:** `test_matches_torchvision_nms` (importorskip torchvision) — our greedy NMS == `torchvision.ops.nms` on 40 random boxes. +7 tests, 139 green.
+- **Honest framing:** YOLO already does NMS internally, so this is a demonstrated-equivalent reimplementation (first-principles value, not a behaviour change) — told Mike that up front before building.
+
 ## 2026-06-26 — Two from-scratch builds: backprop (zero-autograd training) + Kalman filter
 - **Backprop from scratch** (`cnn/autograd.py`): hand-derived backward passes for conv (im2col/col2im), max-pool, ReLU, linear, softmax-cross-entropy + an Adam optimiser. `ScratchNet` = our architecture's forward+backward. **Gradient-checked vs finite differences** (the proof) + im2col conv == the loop reference in conv.py. `train_scratch.py` trains the discriminator with **zero autograd** (pure NumPy) → 99.7% val in ~5s. The CNN is now first-principles end-to-end (forward + backward + optimiser all hand-written).
 - **Kalman from scratch** (`kalman.py`): general `KalmanFilter` (predict/update with covariance P + optimal gain K), `CVKalman1D` (constant-velocity, variable dt), `TargetKalman3D` (drop-in for Estimator3D, returns (pos,vel), plus `position_std()` uncertainty — ties to stereo depth-error). Verified `FireControlTracker` hits using the Kalman estimator (drop-in works).
