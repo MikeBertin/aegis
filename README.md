@@ -3,7 +3,7 @@
 > *A computer-vision turret that tracks anything and fires only on inanimate targets — with the safety architecture as a first-class, testable feature, not an afterthought.*
 
 ![milestones](https://img.shields.io/badge/software-M1--M4_complete-3fb950)
-![tests](https://img.shields.io/badge/tests-145_passing-3fb950)
+![tests](https://img.shields.io/badge/tests-152_passing-3fb950)
 ![python](https://img.shields.io/badge/python-3.13-3776ab)
 ![model](https://img.shields.io/badge/detector-YOLOv11-blue)
 ![edge](https://img.shields.io/badge/edge-Jetson_Orin_Nano-76b900)
@@ -73,7 +73,7 @@ Each frame: the detector finds objects → the tracker picks one and computes a 
 
 **Sharper fire-control (M2.7).** Three refinements addressing real limits: **latency compensation** predicts the target through the perception+actuation delay before launch (so the lead covers system latency, not just dart flight — a 100 ms pipeline adds ~3.5° of lead at 5 m); a **constant-acceleration α-β-γ filter** (`estimator.py`) follows a *maneuvering* target the constant-velocity model can't; and a **numerical solver** (`refine=`) flies the shot and nulls the closest-approach miss, closing the heavy-drag gap the closed-form seed leaves (k=0.15 at 5 m: a 16 cm miss → a 1 cm hit).
 
-**Multi-target tracking (MOT).** `mot.py` turns per-frame detections into persistent tracks with stable IDs via predict → IoU-match → update → age-out. Tracks confirm only after several hits (rejects one-frame false positives) and **coast on their velocity estimate through brief occlusion**, so a momentary miss keeps the lock and the ID instead of dropping or re-numbering it. `prioritize()` picks which confirmed track to engage — the foundation for tracking a crowd and choosing one.
+**Multi-target tracking (MOT).** `mot.py` turns per-frame detections into persistent tracks with stable IDs via predict → match → update → age-out. Matching is the **optimal** assignment (the from-scratch Hungarian algorithm in `assignment.py`, minimising total `1 - IoU`), not greedy — so in a crowded frame it won't swap two competing IDs the way "take the best pair first" can. Tracks confirm only after several hits (rejects one-frame false positives) and **coast on their velocity estimate through brief occlusion**, so a momentary miss keeps the lock and the ID instead of dropping or re-numbering it. `prioritize()` picks which confirmed track to engage — the foundation for tracking a crowd and choosing one.
 
 **A CNN from scratch (M5).** The detector is already a CNN (YOLOv11), but it's a black box we fine-tune. `aegis/cnn/` adds a conv net we **build ourselves** — our own architecture (two conv blocks + two FC layers) — as a learned **target discriminator**: even when YOLO says "balloon", this confirms it's the *designated* (red) one before it's fireable. "From scratch" is literal here: the conv/pool/linear **forward** ops are pure NumPy (`cnn/conv.py`, matching PyTorch to ~1e-7), *and* the **backward** pass + an Adam optimiser are hand-written too (`cnn/autograd.py`), gradient-checked against finite differences — so the net is trained with **zero autograd** (`train_scratch.py` → 99.7% val accuracy in ~5 s of pure NumPy). Nothing about this CNN is a black box.
 
@@ -88,7 +88,8 @@ A deliberate theme: the algorithms are **hand-written and tested**, not imported
 | **Kalman filter** (covariance, optimal gain) | `kalman.py` |
 | **Ballistic intercept solver** (gravity, drag, latency, numerical refine) | `ballistics.py` |
 | **Stereo** — geometry (range from disparity) + block-matching disparity | `stereo.py`, `stereo_match.py` |
-| **SORT multi-target tracking** (IoU matching, lifecycle) | `mot.py` |
+| **SORT multi-target tracking** (lifecycle, occlusion) | `mot.py` |
+| **Hungarian algorithm** (optimal assignment for matching) | `assignment.py` |
 | **Non-max suppression** (greedy + soft-NMS, matches torchvision) | `nms.py` |
 | **Safety state machine** + failsafes | `safety_fsm.py` |
 | **CNN forward** (conv / pool / linear in NumPy) | `cnn/conv.py` |
@@ -163,7 +164,7 @@ python sim.py --plot                      # M2: tune the PID, save response plot
 python train.py --synthetic 16 --epochs 1 --device cpu # M4: smoke-test the training pipeline
 python train_cnn.py                       # M5: train the from-scratch CNN (PyTorch)
 python train_scratch.py                   # M5: train it with ZERO autograd (pure-NumPy backprop)
-pytest                                     # 145 headless tests (torch-gated ones skip without torch)
+pytest                                     # 152 headless tests (torch-gated ones skip without torch)
 ```
 In the live window: `a` arm/disarm · `f` fire (only if the gate says CLEAR) · `q` quit.
 
@@ -202,6 +203,7 @@ aegis/
 │   ├── stereo_match.py      # block-matching disparity from an image pair (pure — tested)
 │   ├── ballistics.py        # intercept + gravity + drag + latency + numerical solver (pure — tested)
 │   ├── mot.py               # SORT multi-target tracking: IDs, occlusion, prioritise (pure — tested)
+│   ├── assignment.py        # Hungarian algorithm — optimal matching (pure — tested vs scipy)
 │   ├── nms.py               # non-max suppression: greedy + soft-NMS (pure — tested vs torchvision)
 │   ├── cnn/                 # M5 from-scratch CNN: conv ops + backprop (autograd.py), model, discriminator
 │   ├── kalman.py            # from-scratch Kalman filter (pure NumPy — tested)
@@ -212,7 +214,7 @@ aegis/
 │   ├── config.py detector.py overlay.py pipeline.py   # config, YOLO adapter, HUD, loop
 │   ├── hardware/            # driver ABCs + servo mapping, mocks, PCA9685/Nerf (lazy)
 │   └── data/                # M4: YOLO label/split/data.yaml (pure), builder, synth
-└── tests/                   # tracker, controller, safety, hardware, dataset — 145 tests
+└── tests/                   # tracker, controller, safety, hardware, dataset — 152 tests
 ```
 
 ## Design notes

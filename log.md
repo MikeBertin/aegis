@@ -6,6 +6,13 @@ Decisions, progress notes, session diary. Most recent first.
 
 ---
 
+## 2026-06-26 — Hungarian algorithm from scratch + wired into MOT | from-scratch list complete
+- **`assignment.py`:** `linear_sum_assignment` (Hungarian, O(n³) potential/Kuhn-Munkres method via `_hungarian_core`; handles rectangular by transposing so rows≤cols). Pure Python.
+- **Proof:** `test_matches_scipy_total_cost` (importorskip scipy) — total cost equals `scipy.optimize.linear_sum_assignment` on 20 random matrices of mixed shapes; plus the classic greedy-vs-optimal 2×2 (greedy 10, optimal 4) and rectangular cases. +7 tests.
+- **Wired into `mot.py`:** replaced `_greedy_match` with `_match` using the Hungarian solver (minimise total 1-IoU, then gate by iou_threshold). Same interface; mot tests still pass (9). Optimal matching avoids ID swaps in crowded frames that greedy can cause.
+- 152 tests green. README: MOT paragraph updated (optimal/Hungarian), first-principles table + repo layout + badge.
+- **From-scratch list now complete** (PID, α-β/α-β-γ, Kalman, ballistics, stereo geometry + block-matching, SORT, NMS, Hungarian, safety FSM, CNN fwd+bwd). Mike has thoroughly mined the first-principles seam (purpose b). Standing real-world next moves: physical build, or make repo public.
+
 ## 2026-06-26 — Block-matching stereo from scratch | compute disparity, not just geometry | the real capability gain
 - **`stereo_match.py`:** `block_match_disparity` (for each disparity d, shift right image, per-pixel SAD/SSD cost, box-sum over the block window → cost volume; per-pixel argmin = disparity). Own `_box_sum` (k² shifted adds, no library filter). `disparity_to_depth` (vectorised, uses StereoRig). `make_synthetic_pair` (rectified pair w/ known per-region disparity: foreground square closer than background).
 - **Bug found+fixed during testing:** my synthetic pair had the disparity sign flipped (put the right-image feature shifted right; closer objects shift LEFT in the right view). Fixed → recovers bg≈4, fg≈16/18.

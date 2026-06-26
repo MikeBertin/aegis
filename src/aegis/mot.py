@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
+from .assignment import linear_sum_assignment
 from .safety import iou
 from .tracker import Detection
 
@@ -85,21 +86,22 @@ class Track:
         return Detection(self.class_id, self.label, self.confidence, self.box())
 
 
-def _greedy_match(track_boxes, det_boxes, iou_threshold):
-    pairs = []
-    for ti, tb in enumerate(track_boxes):
-        for di, db in enumerate(det_boxes):
-            v = iou(tb, db)
-            if v >= iou_threshold:
-                pairs.append((v, ti, di))
-    pairs.sort(reverse=True)
+def _match(track_boxes, det_boxes, iou_threshold):
+    """Optimal track↔detection matching via the Hungarian algorithm.
+
+    Minimise total ``1 - IoU`` over all assignments (globally optimal, unlike
+    greedy), then drop any matched pair whose IoU is below the gate.
+    """
+    if not track_boxes or not det_boxes:
+        return [], list(range(len(track_boxes))), list(range(len(det_boxes)))
+
+    cost = [[1.0 - iou(tb, db) for db in det_boxes] for tb in track_boxes]
     used_t, used_d, matches = set(), set(), []
-    for _, ti, di in pairs:
-        if ti in used_t or di in used_d:
-            continue
-        used_t.add(ti)
-        used_d.add(di)
-        matches.append((ti, di))
+    for ti, di in linear_sum_assignment(cost):
+        if iou(track_boxes[ti], det_boxes[di]) >= iou_threshold:
+            matches.append((ti, di))
+            used_t.add(ti)
+            used_d.add(di)
     unmatched_t = [i for i in range(len(track_boxes)) if i not in used_t]
     unmatched_d = [i for i in range(len(det_boxes)) if i not in used_d]
     return matches, unmatched_t, unmatched_d
@@ -121,7 +123,7 @@ class MultiTargetTracker:
         det_boxes = [d.xyxy for d in detections]
         track_boxes = [t.predicted_box(dt) for t in self.tracks]
 
-        matches, unmatched_t, unmatched_d = _greedy_match(
+        matches, unmatched_t, unmatched_d = _match(
             track_boxes, det_boxes, self.iou_threshold
         )
 
