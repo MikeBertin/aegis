@@ -8,6 +8,9 @@
 ![model](https://img.shields.io/badge/detector-YOLOv11-blue)
 ![edge](https://img.shields.io/badge/edge-Jetson_Orin_Nano-76b900)
 ![control](https://img.shields.io/badge/control-PID_tuned_in_sim-blue)
+![license](https://img.shields.io/badge/license-MIT-blue)
+
+**▶ [Live interactive demos](https://mikebertin.github.io/aegis/)** — the real control, safety, CNN and algorithm code running in your browser (Pyodide).
 
 AEGIS detects and tracks objects in real time (CNN), aims a pan/tilt gimbal with a tuned PID loop, and fires a Nerf flywheel gun at inanimate showcase targets **only under explicit human-in-the-loop arming and a safety gate enforced in code**. Built to run a custom-trained detector on a Jetson Orin Nano.
 
@@ -170,7 +173,7 @@ In the live window: `a` arm/disarm · `f` fire (only if the gate says CLEAR) · 
 
 ## ▶ Interactive demo
 
-Static pages that run the real control / safety / ballistics code in-browser via Pyodide. Built to run locally:
+Static pages that run the real control / safety / ballistics code in-browser via Pyodide. **Live at [mikebertin.github.io/aegis](https://mikebertin.github.io/aegis/)** (or run locally):
 ```bash
 cd docs/site && python -m http.server 8000   # then open http://localhost:8000
 ```
@@ -180,7 +183,7 @@ Three demos, linked by an **evolution** nav so you can see the project grow:
 - **③ Vision / CNN** (`cnn.html`) — runs our **from-scratch NumPy CNN** in-browser: a **convolution playground** (pick a kernel, see the feature map) and the **live classifier** (draw a balloon, watch the conv-1 feature maps and the TARGET/not verdict — a red *square* scores 0, so it really learned colour *and* shape).
 - **④ Algorithms** (`algorithms.html`) — a gallery of the hand-written algorithms, each running its real module live: the **Kalman filter** smoothing a noisy track, the **Hungarian algorithm** finding the optimal assignment (vs greedy) on an editable cost matrix, **NMS** collapsing overlapping boxes, and **block-matching stereo** recovering a disparity map.
 
-(To publish as live URLs, make the repo public and enable GitHub Pages on `docs/site`.)
+They're deployed to GitHub Pages from `docs/site` by `.github/workflows/pages.yml`.
 
 ## Repo layout
 
