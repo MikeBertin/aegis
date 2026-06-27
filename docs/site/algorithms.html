@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AEGIS — algorithms from scratch</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --border:#30363d; --fg:#c9d1d9; --muted:#8b949e;
+    --green:#3fb950; --red:#f85149; --amber:#d29922; --blue:#58a6ff; --accent:#76b900;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;line-height:1.5}
+  header{padding:24px 20px 8px;text-align:center;border-bottom:1px solid var(--border)}
+  header h1{margin:0;font-size:24px;letter-spacing:.5px}
+  header p{margin:6px 0 0;color:var(--muted);font-size:14px}
+  .evonav{display:flex;gap:10px;justify-content:center;align-items:center;
+    padding:12px;border-bottom:1px solid var(--border);background:var(--panel);font-size:13px;flex-wrap:wrap}
+  .evonav span{color:var(--muted)}
+  .evonav a{color:var(--blue);text-decoration:none;border:1px solid var(--border);border-radius:16px;padding:4px 12px}
+  .evonav a.active{color:var(--bg);background:var(--accent);border-color:var(--accent);font-weight:600}
+  .wrap{max-width:980px;margin:0 auto;padding:20px}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:18px;margin:18px 0}
+  .panel h2{margin:0 0 4px;font-size:18px}
+  .panel .sub{color:var(--muted);font-size:13px;margin-bottom:14px}
+  .row{display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start}
+  canvas{background:#010409;border:1px solid var(--border);border-radius:8px;display:block;max-width:100%}
+  .controls{display:grid;grid-template-columns:auto 1fr auto;gap:8px 12px;align-items:center;margin-top:12px;max-width:460px}
+  .controls label{color:var(--muted);font-size:13px;font-family:monospace}
+  .controls output{font-family:monospace;color:var(--fg);min-width:56px;text-align:right;font-size:13px}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .readout{font-family:monospace;font-size:13px;color:var(--fg);margin-top:10px;
+    background:#010409;border:1px solid var(--border);border-radius:6px;padding:8px 10px;display:inline-block}
+  .label{color:var(--muted);font-size:12px;margin:4px 0;text-align:center}
+  table.cost{border-collapse:collapse;font-family:monospace}
+  table.cost td{border:1px solid var(--border);padding:0}
+  table.cost input{width:46px;height:38px;text-align:center;background:#010409;color:var(--fg);
+    border:none;font-family:monospace;font-size:14px}
+  table.cost td.assigned{background:rgba(63,185,80,0.22)}
+  table.cost td.assigned input{color:var(--green);font-weight:700}
+  .legend{font-size:12px;color:var(--muted);margin-top:8px}
+  a{color:var(--blue)}
+  #loading{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;
+    justify-content:center;flex-direction:column;gap:14px;z-index:10}
+  .spinner{width:34px;height:34px;border:3px solid var(--border);border-top-color:var(--accent);
+    border-radius:50%;animation:spin .9s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  footer{text-align:center;color:var(--muted);font-size:12px;padding:24px}
+  .badge{font-family:monospace;font-size:11px;color:var(--accent);border:1px solid var(--accent);border-radius:20px;padding:2px 10px}
+</style>
+</head>
+<body>
+<div id="loading">
+  <div class="spinner"></div>
+  <div id="loadmsg">Booting Python + NumPy (Pyodide)…</div>
+  <div style="color:var(--muted);font-size:12px;max-width:380px;text-align:center">
+    Every panel runs the real hand-written module (<code>kalman.py</code>,
+    <code>assignment.py</code>, <code>nms.py</code>, <code>stereo_match.py</code>) in your browser.
+  </div>
+</div>
+
+<header>
+  <h1>🛡️ AEGIS — algorithms from scratch</h1>
+  <p>Tonight's first-principles builds, running live &nbsp;<span class="badge">real NumPy</span></p>
+</header>
+<div class="evonav">
+  <span>project evolution:</span>
+  <a href="index.html">① Control &amp; Safety</a>
+  <a href="firecontrol.html">② Stereo Fire-Control</a>
+  <a href="cnn.html">③ Vision / CNN</a>
+  <a href="algorithms.html" class="active">④ Algorithms</a>
+</div>
+
+<div class="wrap">
+
+  <!-- PANEL 1: Kalman -->
+  <div class="panel">
+    <h2>① Kalman filter — tracking through noise</h2>
+    <div class="sub">A true path (grey) is seen only through noisy measurements (red dots). The
+      <span style="color:var(--green)">Kalman estimate</span> (and its ±2σ uncertainty band) is recovered
+      by <code>kalman.py</code>. More measurement noise → trust the model more; more process noise → trust the data more.</div>
+    <canvas id="kalCanvas" width="900" height="280"></canvas>
+    <div class="controls">
+      <label>measure noise</label><input id="kR" type="range" min="0.2" max="6" step="0.2" value="4"><output id="kRo"></output>
+      <label>process noise</label><input id="kQ" type="range" min="0.05" max="8" step="0.05" value="0.7"><output id="kQo"></output>
+    </div>
+    <div class="readout" id="kReadout">—</div>
+  </div>
+
+  <!-- PANEL 2: Hungarian -->
+  <div class="panel">
+    <h2>② Hungarian algorithm — optimal assignment</h2>
+    <div class="sub">Edit the cost matrix (rows = tracks, cols = detections). <code>assignment.py</code> finds the
+      assignment with the **minimum total cost** — highlighted. Compare it to greedy "cheapest pair first".</div>
+    <div class="row">
+      <table class="cost" id="costTable"></table>
+      <div>
+        <div class="readout" id="hReadout">—</div>
+        <div class="legend">Click any cell to edit. Green = the optimal assignment.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL 3: NMS -->
+  <div class="panel">
+    <h2>③ Non-max suppression — one box per object</h2>
+    <div class="sub">A detector fires many overlapping boxes per object. <code>nms.py</code> keeps the highest-scoring
+      box and suppresses its duplicates. Slide the IoU threshold; <span style="color:var(--green)">kept</span> vs
+      <span style="color:var(--muted)">suppressed</span>.</div>
+    <canvas id="nmsCanvas" width="900" height="230"></canvas>
+    <div class="controls">
+      <label>IoU threshold</label><input id="nT" type="range" min="0.1" max="0.9" step="0.05" value="0.45"><output id="nTo"></output>
+    </div>
+    <div class="readout" id="nReadout">—</div>
+  </div>
+
+  <!-- PANEL 4: Stereo -->
+  <div class="panel">
+    <h2>④ Block-matching stereo — disparity from a pair</h2>
+    <div class="sub">For each pixel, <code>stereo_match.py</code> slides a window along the row of the other image to
+      find the shift that matches best — the disparity (→ depth). The closer square shows a larger shift.</div>
+    <div class="row" id="stereoRow">
+      <div><canvas id="stLeft" width="150" height="150"></canvas><div class="label">left</div></div>
+      <div><canvas id="stRight" width="150" height="150"></canvas><div class="label">right</div></div>
+      <div><canvas id="stDisp" width="150" height="150"></canvas><div class="label">recovered disparity</div></div>
+    </div>
+    <div class="controls">
+      <label>block size</label><input id="sB" type="range" min="3" max="11" step="2" value="7"><output id="sBo"></output>
+      <label>max disparity</label><input id="sD" type="range" min="8" max="28" step="2" value="20"><output id="sDo"></output>
+    </div>
+    <div class="readout" id="sReadout">—</div>
+  </div>
+
+  <footer>
+    Runs <code>src/aegis/{kalman,assignment,nms,stereo_match}.py</code> in Pyodide. Part of
+    <a href="../../README.md">Project AEGIS</a>.
+  </footer>
+</div>
+
+<script src="aegis_modules.js?v=5"></script>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<script src="algorithms.js?v=3"></script>
+</body>
+</html>

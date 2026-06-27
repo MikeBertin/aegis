@@ -178,6 +178,7 @@ Three demos, linked by an **evolution** nav so you can see the project grow:
 - **① Control & Safety** (`index.html`) — a **PID tuner** (live response + animated turret viz, with a feedforward toggle and lead-time slider) and the **safety-gate playground** (drag a person near the target → the gate flips CLEAR/BLOCKED live).
 - **② Stereo Fire-Control** (`firecontrol.html`) — **stereo ranging** (disparity → depth, with its quadratic error growth) and the **ballistic solver** (top-down lead + side-on gravity arc; muzzle-velocity, range, target-speed and **dart-drag** sliders; the solution dart hits, naive misses).
 - **③ Vision / CNN** (`cnn.html`) — runs our **from-scratch NumPy CNN** in-browser: a **convolution playground** (pick a kernel, see the feature map) and the **live classifier** (draw a balloon, watch the conv-1 feature maps and the TARGET/not verdict — a red *square* scores 0, so it really learned colour *and* shape).
+- **④ Algorithms** (`algorithms.html`) — a gallery of the hand-written algorithms, each running its real module live: the **Kalman filter** smoothing a noisy track, the **Hungarian algorithm** finding the optimal assignment (vs greedy) on an editable cost matrix, **NMS** collapsing overlapping boxes, and **block-matching stereo** recovering a disparity map.
 
 (To publish as live URLs, make the repo public and enable GitHub Pages on `docs/site`.)
 

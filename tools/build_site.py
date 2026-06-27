@@ -21,6 +21,8 @@ MODULES = [
     "tracker.py", "controller.py", "estimator.py",
     "tracking.py", "simulator.py", "safety.py",
     "stereo.py", "ballistics.py",
+    # tonight's from-scratch algorithms (demo page ④)
+    "kalman.py", "nms.py", "assignment.py", "stereo_match.py",
 ]
 OUT = "docs/site/aegis_modules.js"
 

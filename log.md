@@ -6,6 +6,12 @@ Decisions, progress notes, session diary. Most recent first.
 
 ---
 
+## 2026-06-27 — Demo page ④ Algorithms | tonight's from-scratch builds running live
+- **`docs/site/algorithms.html` + `algorithms.js`:** one "gallery" page (single page per Mike's choice) with 4 panels, each running the real module via Pyodide+NumPy: ① Kalman (`kalman.py` — true path + noisy measurements + KF estimate w/ ±2σ band; R/Q sliders), ② Hungarian (`assignment.py` — editable 4×4 cost matrix, highlights optimal assignment + greedy comparison), ③ NMS (`nms.py` — overlapping boxes, IoU-threshold slider, kept vs suppressed), ④ block-matching stereo (`stereo_match.py` — left/right/disparity, block-size + max-disparity sliders).
+- Added kalman/nms/assignment/stereo_match to `build_site.py` bundle (now 13 modules); ④ linked in evonav on all 4 pages; bumped bundle cache to v=5.
+- **Kalman demo bug fixed:** initial true path was a fast sinusoid the constant-velocity KF couldn't track → filter looked WORSE than raw (6.33 vs 1.3). Swapped to a smooth slow path (20sin0.12t+10sin0.05t) + defaults R=4/Q=0.7 → filter clearly wins (raw 1.83→KF 0.78). Verified across noise levels in-browser.
+- **Verification:** all 4 panels produce correct outputs (Kalman smooths, Hungarian optimal=12 vs greedy=13, NMS 15→3, stereo fg16/bg4); canvas sizes correct; pixel-scans confirm NMS (7928px) + stereo (22500px) rendered; no console errors. (Screenshot tool framed the long page's lower canvases poorly — not a real issue.)
+
 ## 2026-06-26 — Hungarian algorithm from scratch + wired into MOT | from-scratch list complete
 - **`assignment.py`:** `linear_sum_assignment` (Hungarian, O(n³) potential/Kuhn-Munkres method via `_hungarian_core`; handles rectangular by transposing so rows≤cols). Pure Python.
 - **Proof:** `test_matches_scipy_total_cost` (importorskip scipy) — total cost equals `scipy.optimize.linear_sum_assignment` on 20 random matrices of mixed shapes; plus the classic greedy-vs-optimal 2×2 (greedy 10, optimal 4) and rectangular cases. +7 tests.
