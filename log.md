@@ -6,6 +6,14 @@ Decisions, progress notes, session diary. Most recent first.
 
 ---
 
+## 2026-06-27 — Repo public + MIT license + GitHub Pages | handover written
+- **Public:** ran a secret/sensitive-file scan (clean), then `gh repo edit --visibility public`. Repo is now public at github.com/MikeBertin/aegis. Author email already on all commits (no new exposure); safety-first framing makes it defensible.
+- **License:** MIT (LICENSE, copyright 2026 Mike Bertin) — Mike's choice.
+- **GitHub Pages:** `.github/workflows/pages.yml` deploys `docs/site` to Pages root via actions/deploy-pages; enabled with `gh api -X POST repos/.../pages -f build_type=workflow` (build_type=workflow, html_url mikebertin.github.io/aegis). Demo footer links repointed `../../README.md` → repo URL so they resolve at the Pages root. README: live-demos link + MIT badge.
+- **UNVERIFIED:** the Pages deploy run status (user interrupted the `gh run list` check). Next session: confirm the workflow succeeded and the live site loads (`gh run list --workflow=pages.yml`; open mikebertin.github.io/aegis).
+- **Deferred (in HANDOVER.md):** restyle the 4 demo pages to the chiron/empedocles house style (radial-gradient bg, gradient hero text, mono badges, card-grid landing, OG/Twitter meta + og.png). Not started.
+- Wrote a full HANDOVER.md (gitignored) for the next session.
+
 ## 2026-06-27 — Demo page ④ Algorithms | tonight's from-scratch builds running live
 - **`docs/site/algorithms.html` + `algorithms.js`:** one "gallery" page (single page per Mike's choice) with 4 panels, each running the real module via Pyodide+NumPy: ① Kalman (`kalman.py` — true path + noisy measurements + KF estimate w/ ±2σ band; R/Q sliders), ② Hungarian (`assignment.py` — editable 4×4 cost matrix, highlights optimal assignment + greedy comparison), ③ NMS (`nms.py` — overlapping boxes, IoU-threshold slider, kept vs suppressed), ④ block-matching stereo (`stereo_match.py` — left/right/disparity, block-size + max-disparity sliders).
 - Added kalman/nms/assignment/stereo_match to `build_site.py` bundle (now 13 modules); ④ linked in evonav on all 4 pages; bumped bundle cache to v=5.

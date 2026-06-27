@@ -21,5 +21,8 @@ runs/
 # Local editor / preview config (machine-specific paths)
 .claude/
 
+# Internal session handover (not for the public repo)
+HANDOVER.md
+
 # OS
 .DS_Store
