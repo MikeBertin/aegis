@@ -6,6 +6,15 @@ Decisions, progress notes, session diary. Most recent first.
 
 ---
 
+## 2026-06-27 — Demos restyled to the house style (option A) | designed landing + subfolders
+- **Pages deploy confirmed live** (Mike checked) before starting.
+- **Restructure (option A, Mike's call):** new card-grid **landing** at `docs/site/index.html`; the 4 demos moved (`git mv`) into subfolders — `control/`, `firecontrol/`, `vision/` (was cnn), `algorithms/` — each as `index.html`. Shared JS bundles stay at `docs/site/` root and are referenced as `../*.js` (they're self-contained — Python is written into Pyodide's FS, no relative fetch — so `../` is safe; `tools/build_site.py` output path unchanged). `pages.yml` artifact path (`docs/site`) still correct.
+- **House style:** chiron/empedocles palette (`--bg:#0a0a0f`, `--panel:#13131c`, `--line:#23232f`, gradient hero `<h1>`, mono uppercase `.badge`, `.lede`), per-page accent (control=blue, firecontrol=amber, vision=green, algorithms=purple) + a tinted radial-gradient bg per page. New `nav.evo` (home + 4 pill links). Landing has 4 cards with **live canvas teasers** (reticle-chasing-target, ballistic arc, feature-map grid, Kalman noisy-dots+estimate) and a safety-policy chip.
+- **Social:** OG + Twitter meta on all 5 pages; generated **`og.png`** (1200×630, gradient title via PIL mask, accent chips) → `docs/site/og.png`.
+- **Logic untouched:** only HTML/CSS + script `src` paths changed; all canvas/input IDs preserved.
+- **Verified** in preview browser (port 8766): landing teasers paint; all 4 demos boot Pyodide and compute their readouts (PID metrics + gate CLEAR; stereo 3.00 m + ballistic HIT; CNN "✓ TARGET"; Kalman/Hungarian/NMS/stereo all compute); **zero console errors** on every page. README demo section repointed to subfolder paths.
+- **Next:** commit inside the aegis repo (push redeploys Pages), then sanity-check the live site.
+
 ## 2026-06-27 — Repo public + MIT license + GitHub Pages | handover written
 - **Public:** ran a secret/sensitive-file scan (clean), then `gh repo edit --visibility public`. Repo is now public at github.com/MikeBertin/aegis. Author email already on all commits (no new exposure); safety-first framing makes it defensible.
 - **License:** MIT (LICENSE, copyright 2026 Mike Bertin) — Mike's choice.

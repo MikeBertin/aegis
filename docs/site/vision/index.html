@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AEGIS — From-Scratch CNN</title>
+<meta name="description" content="A convolutional neural network written from scratch in pure NumPy — forward and backward — classifying targets live in your browser. From Project AEGIS." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://mikebertin.github.io/aegis/vision/" />
+<meta property="og:title" content="AEGIS — From-Scratch CNN" />
+<meta property="og:description" content="A conv net hand-written in pure NumPy (no autograd) classifying targets live in your browser — the real AEGIS discriminator." />
+<meta property="og:image" content="https://mikebertin.github.io/aegis/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://mikebertin.github.io/aegis/og.png" />
+<style>
+  :root{
+    --bg:#0a0a0f; --panel:#13131c; --line:#23232f; --ink:#e7e7ef; --muted:#8a8a9c;
+    --accent:#7ee787; --accent2:#5fd0c5;
+    --green:#3fb950; --red:#f85149; --amber:#d29922; --blue:#58a6ff;
+    --mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+    --fg:var(--ink); --border:var(--line);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:radial-gradient(1100px 700px at 50% -10%,#0f1a12,#0a0a0f 60%);
+    color:var(--ink);min-height:100vh;line-height:1.5;
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+  nav.evo{max-width:1040px;margin:0 auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+    padding:22px 28px 0;font-family:var(--mono);font-size:12px}
+  nav.evo .home{color:var(--ink);text-decoration:none;font-weight:600;letter-spacing:.5px;margin-right:4px}
+  nav.evo .home:hover{color:var(--accent)}
+  nav.evo .sep{color:var(--line)}
+  nav.evo a.lnk{color:var(--muted);text-decoration:none;padding:4px 11px;border:1px solid var(--line);
+    border-radius:999px;transition:.13s}
+  nav.evo a.lnk:hover{color:var(--ink);border-color:#34344a}
+  nav.evo a.lnk.active{color:#06070b;background:var(--accent);border-color:transparent;font-weight:600}
+  .wrap{max-width:1040px;margin:0 auto;padding:26px 28px 56px}
+  header.hero{margin:6px 0 24px}
+  .badge{font-family:var(--mono);font-size:12px;letter-spacing:3px;color:var(--muted);text-transform:uppercase}
+  h1{font-size:40px;margin:9px 0 12px;letter-spacing:-.5px;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{color:var(--muted);font-size:15px;line-height:1.6;max-width:720px;margin:0}
+  .lede b{color:var(--ink);font-weight:600}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin:18px 0}
+  .panel h2{margin:0 0 5px;font-size:18px}
+  .panel .sub{color:var(--muted);font-size:13.5px;margin-bottom:14px;line-height:1.55}
+  .panel .sub b{color:var(--ink)} .panel .sub code{color:var(--accent)}
+  .row{display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start}
+  .cnn-top{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.12fr);gap:18px;margin:18px 0;align-items:stretch}
+  .cnn-top > .panel{margin:0;height:100%}
+  @media (max-width:760px){.cnn-top{grid-template-columns:1fr}}
+  .conv-vis{gap:14px;align-items:center}
+  .conv-vis canvas{width:118px;height:118px}
+  .conv-vis .kmat{align-self:center}
+  canvas{background:#08080c;border:1px solid var(--line);border-radius:8px;image-rendering:pixelated;display:block}
+  .pix{image-rendering:pixelated}
+  button{background:#08080c;color:var(--ink);border:1px solid var(--line);border-radius:8px;
+    padding:6px 12px;font-size:13px;cursor:pointer;margin:2px;transition:.12s;font-family:inherit}
+  button:hover{border-color:#34344a}
+  button.sel{border-color:var(--accent);color:var(--accent)}
+  .swatch{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);cursor:pointer;display:inline-block;margin:2px;vertical-align:middle}
+  .swatch.sel{border-color:#fff}
+  .label{color:var(--muted);font-size:12px;margin:4px 0;text-align:center}
+  .verdict{font-family:var(--mono);font-weight:700;font-size:16px;margin-top:10px}
+  .bar{height:14px;background:#08080c;border:1px solid var(--line);border-radius:7px;overflow:hidden;margin-top:6px;width:240px}
+  .bar > div{height:100%;background:var(--accent);width:0%}
+  .feat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;max-width:280px}
+  .feat-grid canvas{width:100%}
+  .kernels{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+  .kmat{font-family:var(--mono);font-size:12px;color:var(--muted);white-space:pre;background:#08080c;
+    border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:inline-block}
+  a{color:var(--accent)}
+  #loading{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:14px;z-index:10;text-align:center;padding:0 20px}
+  .spinner{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .9s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #loading code{color:var(--accent)}
+  footer{margin-top:44px;padding-top:22px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px;line-height:1.7}
+  footer code{color:var(--muted)} footer a{color:var(--accent);text-decoration:none}
+  footer a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<div id="loading">
+  <div class="spinner"></div>
+  <div id="loadmsg">Booting Python + NumPy (Pyodide)…</div>
+  <div style="color:var(--muted);font-size:12px;max-width:380px">
+    Runs our hand-written <code>cnn/conv.py</code> with the trained weights — the
+    real from-scratch CNN, classifying in your browser.
+  </div>
+</div>
+
+<nav class="evo">
+  <a class="home" href="../">🛡 AEGIS</a><span class="sep">/</span>
+  <a class="lnk" href="../control/">Control &amp; Safety</a>
+  <a class="lnk" href="../firecontrol/">Fire-Control</a>
+  <a class="lnk active" href="../vision/">Vision · CNN</a>
+  <a class="lnk" href="../algorithms/">Algorithms</a>
+</nav>
+
+<div class="wrap">
+  <header class="hero">
+    <div class="badge">M5 · real NumPy CNN</div>
+    <h1>A CNN, Written From Scratch</h1>
+    <p class="lede">
+      The target discriminator is a small convolutional net built in <b>pure NumPy</b> — the conv,
+      pool and fully-connected layers, and the <b>backprop</b> that trained it, all hand-written with
+      <b>zero autograd</b>. Draw a patch below and watch the real network classify it, live.
+    </p>
+  </header>
+
+  <div class="cnn-top">
+  <!-- shared target -->
+  <div class="panel">
+    <h2>The target</h2>
+    <div class="sub">Draw a 32×32 patch — pick a colour and shape. The designated target is the
+      <b>red balloon</b>. This same patch feeds the panels alongside and below.</div>
+    <div class="row">
+      <div>
+        <canvas id="patchView" width="160" height="160"></canvas>
+        <div class="label">32×32 input (scaled up)</div>
+      </div>
+      <div>
+        <div class="label" style="text-align:left">colour</div>
+        <span class="swatch" data-color="red"    style="background:#dc1414"></span>
+        <span class="swatch" data-color="blue"   style="background:#1414dc"></span>
+        <span class="swatch" data-color="green"  style="background:#14b414"></span>
+        <span class="swatch" data-color="yellow" style="background:#dcdc14"></span>
+        <div class="label" style="margin-top:10px;text-align:left">shape</div>
+        <button data-shape="balloon" class="sel">balloon</button>
+        <button data-shape="square">square</button>
+        <div style="margin-top:10px"><button id="redraw">↻ new noise</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL 1: convolution playground -->
+  <div class="panel">
+    <h2>① What a convolution does</h2>
+    <div class="sub">A conv layer slides a small kernel over the image. Pick one — applied by our
+      <code>conv2d</code> — and watch the feature map it produces (edges, blur, …).</div>
+    <div class="kernels" id="kernels"></div>
+    <div class="row conv-vis">
+      <div><canvas id="convIn" width="128" height="128"></canvas><div class="label">input (grey)</div></div>
+      <div><canvas id="convOut" width="128" height="128"></canvas><div class="label">feature map</div></div>
+      <div class="kmat" id="kmat">kernel</div>
+    </div>
+  </div>
+  </div><!-- /.cnn-top -->
+
+  <!-- PANEL 2: the classifier -->
+  <div class="panel">
+    <h2>② The trained CNN decides</h2>
+    <div class="sub">The full forward pass (conv → relu → pool → conv → relu → pool → fc → fc), run in
+      pure NumPy with the trained weights. Left: what the first conv layer detects. Right: the verdict.</div>
+    <div class="row">
+      <div>
+        <div class="label" style="text-align:left">conv-1 feature maps (8 channels)</div>
+        <div class="feat-grid" id="feats"></div>
+      </div>
+      <div>
+        <div class="verdict" id="verdict">—</div>
+        <div class="bar"><div id="probbar"></div></div>
+        <div class="label" id="probtxt" style="text-align:left"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Runs <code>src/aegis/cnn/conv.py</code> in Pyodide with weights from <code>tools/export_cnn.py</code>.
+    <br>Part of <a href="https://github.com/MikeBertin/aegis">Project AEGIS</a>.
+  </footer>
+</div>
+
+<script src="../cnn_conv.js?v=2"></script>
+<script src="../cnn_weights.js?v=2"></script>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<script src="../cnn.js?v=2"></script>
+</body>
+</html>

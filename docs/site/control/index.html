@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AEGIS — PID Control &amp; Safety Gate</title>
+<meta name="description" content="Tune the real PID controller and exercise the live safety gate from Project AEGIS — running in your browser via Pyodide." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://mikebertin.github.io/aegis/control/" />
+<meta property="og:title" content="AEGIS — PID Control &amp; Safety Gate" />
+<meta property="og:description" content="Tune the real PID controller and exercise the live 'fire inanimate only' safety gate — the actual turret code, running in your browser." />
+<meta property="og:image" content="https://mikebertin.github.io/aegis/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://mikebertin.github.io/aegis/og.png" />
+<style>
+  :root{
+    --bg:#0a0a0f; --panel:#13131c; --line:#23232f; --ink:#e7e7ef; --muted:#8a8a9c;
+    --accent:#7cc4ff; --accent2:#5fd0c5;
+    --green:#3fb950; --red:#f85149; --amber:#d29922; --blue:#58a6ff;
+    --mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+    --fg:var(--ink); --border:var(--line);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:radial-gradient(1100px 700px at 50% -10%,#16161f,#0a0a0f 60%);
+    color:var(--ink);min-height:100vh;line-height:1.5;
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+  nav.evo{max-width:1040px;margin:0 auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+    padding:22px 28px 0;font-family:var(--mono);font-size:12px}
+  nav.evo .home{color:var(--ink);text-decoration:none;font-weight:600;letter-spacing:.5px;margin-right:4px}
+  nav.evo .home:hover{color:var(--accent)}
+  nav.evo .sep{color:var(--line)}
+  nav.evo a.lnk{color:var(--muted);text-decoration:none;padding:4px 11px;border:1px solid var(--line);
+    border-radius:999px;transition:.13s}
+  nav.evo a.lnk:hover{color:var(--ink);border-color:#34344a}
+  nav.evo a.lnk.active{color:#06070b;background:var(--accent);border-color:transparent;font-weight:600}
+  .wrap{max-width:1040px;margin:0 auto;padding:26px 28px 56px}
+  header.hero{margin:6px 0 24px}
+  .badge{font-family:var(--mono);font-size:12px;letter-spacing:3px;color:var(--muted);text-transform:uppercase}
+  h1{font-size:40px;margin:9px 0 12px;letter-spacing:-.5px;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{color:var(--muted);font-size:15px;line-height:1.6;max-width:720px;margin:0}
+  .lede b{color:var(--ink);font-weight:600}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin:18px 0}
+  .panel h2{margin:0 0 5px;font-size:18px}
+  .panel .sub{color:var(--muted);font-size:13.5px;margin-bottom:14px;line-height:1.55}
+  .panel .sub b{color:var(--ink)} .panel .sub code{color:var(--accent)}
+  .row{display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start}
+  .col{flex:1 1 300px;min-width:280px}
+  canvas{width:100%;background:#08080c;border:1px solid var(--line);border-radius:10px;display:block;
+    box-shadow:0 18px 50px -30px #000}
+  .controls{display:grid;grid-template-columns:auto 1fr auto;gap:9px 12px;align-items:center;margin-top:12px;max-width:520px}
+  .controls label{color:var(--muted);font-size:12.5px;font-family:var(--mono)}
+  .controls output{font-family:var(--mono);color:var(--ink);min-width:52px;text-align:right;font-size:12.5px}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .scen{display:flex;flex-wrap:wrap;gap:14px;margin:10px 0;font-size:13px;color:var(--muted)}
+  .gate-controls{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:12px;font-size:13px}
+  select,.chk{background:#08080c;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:5px 9px;font-size:13px}
+  .metrics{font-family:var(--mono);font-size:13px;color:var(--ink);margin-top:12px;
+    background:#08080c;border:1px solid var(--line);border-radius:8px;padding:9px 11px}
+  .hud{font-family:var(--mono);font-weight:700;font-size:15px;margin-top:10px}
+  .hint{color:var(--muted);font-size:12px;margin-top:6px}
+  a{color:var(--accent)}
+  #loading{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:14px;z-index:10;text-align:center;padding:0 20px}
+  .spinner{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .9s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #loading code{color:var(--accent)}
+  footer{margin-top:44px;padding-top:22px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px;line-height:1.7}
+  footer code{color:var(--muted)} footer a{color:var(--accent);text-decoration:none}
+  footer a:hover{text-decoration:underline}
+  /* hover-to-explain popovers */
+  .x{color:var(--accent);border-bottom:1px dotted currentColor;cursor:help;white-space:nowrap}
+  .x::after{content:'ⓘ';font-size:.7em;vertical-align:.35em;margin-left:1px;opacity:.7}
+  .x:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
+  #pop{position:fixed;z-index:60;max-width:300px;background:#15151f;border:1px solid #2e2e3e;
+    border-radius:12px;padding:13px 15px;box-shadow:0 22px 55px -16px #000,0 0 0 1px #000;
+    font-size:13px;line-height:1.55;visibility:hidden;opacity:0;transform:translateY(4px);
+    pointer-events:none;transition:opacity .13s,transform .13s}
+  #pop.show{visibility:visible;opacity:1;transform:none;pointer-events:auto}
+  #pop h4{margin:0 0 7px;font-size:13.5px;color:var(--accent)}
+  #pop p{margin:0 0 8px}#pop p:last-child{margin:0}
+  #pop b{color:var(--ink);font-weight:600}
+  #pop .muted{color:var(--muted);font-size:12px}
+  #pop .eq{font-family:var(--mono);background:#0e0e16;border:1px solid var(--line);border-radius:7px;
+    padding:8px 10px;margin:9px 0;font-size:13px;text-align:center;color:#e6ebff}
+  /* "things to notice" cards */
+  .notice{margin-top:30px;border-top:1px solid var(--line);padding-top:24px}
+  .notice-title{font-size:12px;text-transform:uppercase;letter-spacing:1.6px;color:var(--muted);margin:0 0 14px;font-weight:600}
+  .notice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+  @media (max-width:680px){.notice-grid{grid-template-columns:1fr}}
+  .ncard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 16px}
+  .ncard h3{margin:0 0 7px;font-size:14px;font-weight:600}
+  .ncard p{margin:0 0 11px;color:var(--muted);font-size:12.5px;line-height:1.5}
+  .ncard .why{font-size:12.5px;font-weight:600}
+</style>
+</head>
+<body>
+<div id="loading">
+  <div class="spinner"></div>
+  <div id="loadmsg">Booting Python (Pyodide)…</div>
+  <div style="color:var(--muted);font-size:12px;max-width:340px">
+    This page runs the real <code>controller.py</code>, <code>simulator.py</code> and
+    <code>safety.py</code> from the AEGIS repo — in your browser.
+  </div>
+</div>
+
+<nav class="evo">
+  <a class="home" href="../">🛡 AEGIS</a><span class="sep">/</span>
+  <a class="lnk active" href="../control/">Control &amp; Safety</a>
+  <a class="lnk" href="../firecontrol/">Fire-Control</a>
+  <a class="lnk" href="../vision/">Vision · CNN</a>
+  <a class="lnk" href="../algorithms/">Algorithms</a>
+</nav>
+
+<div class="wrap">
+  <header class="hero">
+    <div class="badge">M1–M2.5 · real Python</div>
+    <h1>PID Control &amp; the Safety Gate</h1>
+    <p class="lede">
+      The two halves of the aiming loop: a <b><span class="x" data-pop="pid">PID controller</span></b>
+      driving the pan/tilt gimbal onto a moving target, and the <b>safety gate</b> that decides whether
+      firing is permitted — <i>track all, fire inanimate only</i>. Both run the actual turret code, live via Pyodide.
+    </p>
+  </header>
+
+  <!-- PANEL 1: control tuner -->
+  <div class="panel">
+    <h2>① PID control tuner</h2>
+    <div class="sub">Drag the gains and watch the turret (left) chase the target while the
+      response curve (right) redraws. The plant is an <span class="x" data-pop="integrator">integrator</span> — high Ki hurts tracking.</div>
+    <div class="scen">
+      target motion:
+      <label><input type="radio" name="scen" value="sine" checked> sine (moving)</label>
+      <label><input type="radio" name="scen" value="step"> step</label>
+      <label><input type="radio" name="scen" value="ramp"> ramp</label>
+    </div>
+    <div class="scen" style="border-top:1px solid var(--line);padding-top:10px">
+      <label>
+        <input type="checkbox" id="ff"> <b><span class="x" data-pop="feedforward">velocity feedforward</span></b> (kill the lag)</label>
+      <label style="display:flex;align-items:center;gap:8px"><span class="x" data-pop="lead">lead</span>&nbsp;
+        <input id="lead" type="range" min="0" max="400" step="20" value="0" style="width:120px">
+        <output id="leadO">0</output>&nbsp;ms</label>
+      <span class="hint" style="margin:0">(lead aims ahead by dart flight-time)</span>
+    </div>
+    <div class="row">
+      <div class="col"><canvas id="vizTurret" width="560" height="380"></canvas></div>
+      <div class="col"><canvas id="vizPlot" width="560" height="380"></canvas></div>
+    </div>
+    <div class="controls">
+      <label>Kp</label><input id="kp" type="range" min="0" max="400" step="5" value="200"><output id="kpO"></output>
+      <label>Ki</label><input id="ki" type="range" min="0" max="80"  step="1" value="8"><output id="kiO"></output>
+      <label>Kd</label><input id="kd" type="range" min="0" max="40"  step="1" value="14"><output id="kdO"></output>
+      <label><span class="x" data-pop="slew">slew°/s</span></label><input id="slew" type="range" min="50" max="500" step="10" value="300"><output id="slewO"></output>
+    </div>
+    <div class="metrics" id="metrics">—</div>
+  </div>
+
+  <!-- PANEL 2: safety gate -->
+  <div class="panel">
+    <h2>② Safety-gate playground</h2>
+    <div class="sub"><b>Drag the blue person box</b> toward the target. The gate is the real
+      <code>SafetyGate.evaluate()</code> — <i>track all, fire inanimate only</i>.</div>
+    <canvas id="vizSafety" width="900" height="360"></canvas>
+    <div class="gate-controls">
+      <span>target class:
+        <select id="targetClass" class="chk">
+          <option value="balloon">balloon (fireable)</option>
+          <option value="sports ball">sports ball (fireable)</option>
+          <option value="chair">chair (non-fireable)</option>
+          <option value="person">person (forbidden)</option>
+        </select>
+      </span>
+      <label><input type="checkbox" id="armed" checked> <span class="x" data-pop="armed">armed</span></label>
+      <label><input type="checkbox" id="locked" checked> <span class="x" data-pop="lock">locked</span> (aim error small)</label>
+    </div>
+    <div class="hud" id="gateHud">—</div>
+    <div class="hint">Try: drag the person onto the balloon · switch the target to “person” · un-arm.</div>
+  </div>
+
+  <section class="notice">
+    <h2 class="notice-title">Things to notice</h2>
+    <div class="notice-grid">
+      <div class="ncard">
+        <h3>Steady state for free</h3>
+        <p>Because the plant integrates, the turret holds its angle with zero command — so it reaches a
+          fixed target with no offset even at Ki&nbsp;=&nbsp;0. Integral mostly rejects bias, not error.</p>
+        <span class="x why" data-pop="integrator">Why Ki=0 still settles</span>
+      </div>
+      <div class="ncard">
+        <h3>Crank Ki and it rings</h3>
+        <p>Push Ki up on the step or sine: the loop overshoots and oscillates. The integral keeps
+          winding while the error is already being corrected, so it overshoots before unwinding.</p>
+        <span class="x why" data-pop="kiring">The wind-up</span>
+      </div>
+      <div class="ncard">
+        <h3>Feedforward kills the lag</h3>
+        <p>Plain PID always trails a moving target — it needs an error to act. Tick feedforward and the
+          crosshair snaps onto the target; add lead and it sits ahead by the dart's flight-time.</p>
+        <span class="x why" data-pop="ab">The α-β velocity estimate</span>
+      </div>
+      <div class="ncard">
+        <h3>Safety is defence-in-depth</h3>
+        <p>Arm, an inanimate allowlist, a hard denylist, a lock and a proximity interlock must <i>all</i>
+          pass. The denylist overrides everything — a person can never be a target, even if mis-added.</p>
+        <span class="x why" data-pop="interlock">Every layer</span>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Built from <code>src/aegis/{tracker,controller,simulator,safety}.py</code> — the same code the turret runs.
+    <br>Part of <a href="https://github.com/MikeBertin/aegis">Project AEGIS</a>. Modules bundled by <code>tools/build_site.py</code>.
+  </footer>
+</div>
+
+<div id="pop"></div>
+
+<script src="../aegis_modules.js?v=6"></script>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<script src="../demo.js?v=4"></script>
+<script>
+// ---- hover-to-explain popovers (independent of the Pyodide demo) ----
+const POP = {
+  pid: { title:'PID control', html:`
+    <p>The servo command is <b>P·error</b> (push toward the target) + <b>I·∑error</b> (erase any
+       lingering offset) + <b>D·rate</b> (damp the approach so it doesn't overshoot).</p>
+    <div class="eq">u = Kp·e + Ki·∫e dt + Kd·ė</div>
+    <p class="muted">Tuned here to Kp=200, Ki=8, Kd=14.</p>` },
+  integrator: { title:'Integrator plant', html:`
+    <p>The gimbal turns a rate command into an <b>angle</b>: hold a command and it sweeps at constant
+       speed; zero command holds the angle.</p>
+    <div class="eq">θ̇ = command</div>
+    <p class="muted">Because it integrates, the loop reaches a fixed target with no steady-state error
+       even with Ki=0 — the proportional term alone settles it.</p>` },
+  kiring: { title:'Integral wind-up', html:`
+    <p>With a fast integrator plant, a large <b>Ki</b> keeps accumulating error while the turret is
+       <i>already</i> correcting — so it sails past the target and rings before unwinding.</p>
+    <p class="muted">Here integral mainly rejects steady bias/disturbance; it isn't needed for tracking.</p>` },
+  feedforward: { title:'Velocity feedforward', html:`
+    <p>Pure feedback always <b>trails</b> a moving target — it needs an error to generate a correction.
+       Feeding the target's estimated velocity straight to the servos cancels that lag; the PID only
+       trims the residual.</p>
+    <p class="muted">The velocity comes from the α-β filter.</p>` },
+  lead: { title:'Lead', html:`
+    <p>A dart has flight time, so aiming <i>at</i> a moving target lands behind it. <b>Lead</b> aims
+       ahead by velocity × time-of-flight, so dart and target arrive together.</p>
+    <div class="eq">aim = position + velocity · t_flight</div>` },
+  slew: { title:'Slew-rate limit', html:`
+    <p>A cap (°/s) on how fast the servos can move. Commands are clamped so the turret can't teleport —
+       it models the real gimbal's top speed.</p>
+    <p class="muted">Too low and it can't keep up with a fast target; too high is unrealistic.</p>` },
+  ab: { title:'α-β filter', html:`
+    <p>A lightweight constant-velocity tracker: each noisy measurement nudges a smoothed
+       <b>position</b> (gain α) and <b>velocity</b> (gain β).</p>
+    <p class="muted">Cheaper than a full Kalman filter — and its velocity estimate is exactly what
+       feedforward and lead consume.</p>` },
+  armed: { title:'Arming (human-in-the-loop)', html:`
+    <p>A human gate. On the hardware, firing needs an explicit <b>arm</b> (a physical switch) plus a
+       fire action. Disarmed ⇒ the gate denies everything, no matter the target.</p>` },
+  lock: { title:'Weapons lock', html:`
+    <p>Firing is permitted only when the aim error is small — <b>on target</b>. The turret never fires
+       mid-slew, since a shot during a fast move would scatter.</p>` },
+  interlock: { title:'Defence-in-depth', html:`
+    <p>Five independent layers must all pass: <b>armed</b> · an inanimate <b>allowlist</b> · a hard
+       <b>denylist</b> (people, animals) that overrides everything · a <b>lock</b> · a proximity
+       <b>interlock</b> that blocks the shot if a living thing overlaps or sits near the target.</p>
+    <p class="muted">No single misconfiguration can authorise firing at a living thing.</p>` },
+};
+(function(){
+  const pop=document.getElementById('pop'); let pinned=null;
+  function show(el){
+    const d=POP[el.dataset.pop]; if(!d) return;
+    pop.innerHTML='<h4>'+d.title+'</h4>'+d.html;
+    pop.classList.add('show');
+    const r=el.getBoundingClientRect(), p=pop.getBoundingClientRect(), m=10;
+    let left=Math.max(m, Math.min(r.left+r.width/2-p.width/2, innerWidth-p.width-m));
+    let top=r.top-p.height-10; if(top<m) top=r.bottom+10;
+    pop.style.left=left+'px'; pop.style.top=top+'px';
+  }
+  function hide(){ pop.classList.remove('show'); }
+  document.querySelectorAll('.x').forEach(el=>{
+    el.tabIndex=0; el.setAttribute('role','button');
+    el.addEventListener('mouseenter',()=>{ if(!pinned) show(el); });
+    el.addEventListener('mouseleave',()=>{ if(!pinned) hide(); });
+    el.addEventListener('focus',()=>{ if(!pinned) show(el); });
+    el.addEventListener('blur',()=>{ if(!pinned) hide(); });
+    el.addEventListener('click',e=>{ e.stopPropagation();
+      if(pinned===el){ pinned=null; hide(); } else { pinned=el; show(el); } });
+    el.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); el.click(); } });
+  });
+  pop.addEventListener('click',e=>e.stopPropagation());
+  document.addEventListener('click',()=>{ if(pinned){ pinned=null; hide(); } });
+  addEventListener('keydown',e=>{ if(e.key==='Escape'&&pinned){ pinned=null; hide(); } });
+  addEventListener('scroll',()=>{ if(pinned) show(pinned); }, true);
+})();
+</script>
+</body>
+</html>

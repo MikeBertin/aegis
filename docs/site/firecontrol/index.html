@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AEGIS — Stereo Fire-Control</title>
+<meta name="description" content="Stereo ranging plus a ballistic intercept solver — lead, gravity hold-over and drag — from Project AEGIS, running live in your browser." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://mikebertin.github.io/aegis/firecontrol/" />
+<meta property="og:title" content="AEGIS — Stereo Fire-Control" />
+<meta property="og:description" content="Range from disparity, then a ballistic firing solution: lead, gravity hold-over and drag — the real AEGIS code, running in your browser." />
+<meta property="og:image" content="https://mikebertin.github.io/aegis/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://mikebertin.github.io/aegis/og.png" />
+<style>
+  :root{
+    --bg:#0a0a0f; --panel:#13131c; --line:#23232f; --ink:#e7e7ef; --muted:#8a8a9c;
+    --accent:#ffb454; --accent2:#ff7a59;
+    --green:#3fb950; --red:#f85149; --amber:#d29922; --blue:#58a6ff;
+    --mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+    --fg:var(--ink); --border:var(--line);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:radial-gradient(1100px 700px at 50% -10%,#1a1810,#0a0a0f 60%);
+    color:var(--ink);min-height:100vh;line-height:1.5;
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+  nav.evo{max-width:1040px;margin:0 auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+    padding:22px 28px 0;font-family:var(--mono);font-size:12px}
+  nav.evo .home{color:var(--ink);text-decoration:none;font-weight:600;letter-spacing:.5px;margin-right:4px}
+  nav.evo .home:hover{color:var(--accent)}
+  nav.evo .sep{color:var(--line)}
+  nav.evo a.lnk{color:var(--muted);text-decoration:none;padding:4px 11px;border:1px solid var(--line);
+    border-radius:999px;transition:.13s}
+  nav.evo a.lnk:hover{color:var(--ink);border-color:#34344a}
+  nav.evo a.lnk.active{color:#06070b;background:var(--accent);border-color:transparent;font-weight:600}
+  .wrap{max-width:1040px;margin:0 auto;padding:26px 28px 56px}
+  header.hero{margin:6px 0 24px}
+  .badge{font-family:var(--mono);font-size:12px;letter-spacing:3px;color:var(--muted);text-transform:uppercase}
+  h1{font-size:40px;margin:9px 0 12px;letter-spacing:-.5px;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{color:var(--muted);font-size:15px;line-height:1.6;max-width:720px;margin:0}
+  .lede b{color:var(--ink);font-weight:600}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin:18px 0}
+  .panel h2{margin:0 0 5px;font-size:18px}
+  .panel .sub{color:var(--muted);font-size:13.5px;margin-bottom:14px;line-height:1.55}
+  .panel .sub b{color:var(--ink)} .panel .sub code{color:var(--accent)}
+  .row{display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start}
+  .col{flex:1 1 300px;min-width:280px}
+  canvas{width:100%;background:#08080c;border:1px solid var(--line);border-radius:10px;display:block;
+    box-shadow:0 18px 50px -30px #000}
+  .cap{color:var(--muted);font-size:12px;margin-top:6px;text-align:center}
+  .controls{display:grid;grid-template-columns:auto 1fr auto;gap:9px 12px;align-items:center;margin-top:12px;max-width:520px}
+  .controls label{color:var(--muted);font-size:12.5px;font-family:var(--mono)}
+  .controls output{font-family:var(--mono);color:var(--ink);min-width:60px;text-align:right;font-size:12.5px}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .chkline{margin-top:10px;font-size:13px;color:var(--muted)}
+  .verdict{font-family:var(--mono);font-size:15px;font-weight:700;margin-top:12px;
+    background:#08080c;border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+  .stereo-readout{font-family:var(--mono);font-size:13px;color:var(--ink);margin-top:10px;
+    background:#08080c;border:1px solid var(--line);border-radius:8px;padding:9px 11px}
+  .hint{color:var(--muted);font-size:12px;margin-top:6px}
+  a{color:var(--accent)}
+  #loading{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:14px;z-index:10;text-align:center;padding:0 20px}
+  .spinner{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .9s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #loading code{color:var(--accent)}
+  footer{margin-top:44px;padding-top:22px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px;line-height:1.7}
+  footer code{color:var(--muted)} footer a{color:var(--accent);text-decoration:none}
+  footer a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<div id="loading">
+  <div class="spinner"></div>
+  <div id="loadmsg">Booting Python (Pyodide)…</div>
+  <div style="color:var(--muted);font-size:12px;max-width:360px">
+    Runs the real <code>ballistics.py</code> and <code>stereo.py</code> from the AEGIS repo.
+  </div>
+</div>
+
+<nav class="evo">
+  <a class="home" href="../">🛡 AEGIS</a><span class="sep">/</span>
+  <a class="lnk" href="../control/">Control &amp; Safety</a>
+  <a class="lnk active" href="../firecontrol/">Fire-Control</a>
+  <a class="lnk" href="../vision/">Vision · CNN</a>
+  <a class="lnk" href="../algorithms/">Algorithms</a>
+</nav>
+
+<div class="wrap">
+  <header class="hero">
+    <div class="badge">M2.6 · real Python</div>
+    <h1>Stereo Fire-Control</h1>
+    <p class="lede">
+      Hitting a <b>moving</b> target with a projectile that has flight time takes more than aiming
+      at it. Recover <b>range</b> from a stereo pair, then solve a <b>ballistic intercept</b> —
+      leading the target and holding over for gravity and drag so the dart and target meet.
+    </p>
+  </header>
+
+  <!-- PANEL A: stereo ranging -->
+  <div class="panel">
+    <h2>① Stereo ranging</h2>
+    <div class="sub">A stereo pair recovers range from <b>disparity</b> (the pixel shift between the
+      two cameras): <code>Z = focal · baseline / disparity</code>. Note how the range
+      uncertainty grows with the <b>square</b> of distance — stereo is sharp up close, vague far away.</div>
+    <canvas id="stereoCanvas" width="900" height="180"></canvas>
+    <div class="stereo-readout" id="stereoReadout">—</div>
+  </div>
+
+  <!-- PANEL B: fire-control solver -->
+  <div class="panel">
+    <h2>② Ballistic fire-control solver</h2>
+    <div class="sub">Given the range, the dart's muzzle speed and the target's velocity, solve for the
+      launch direction so dart and target <b>meet</b> — leading horizontally and aiming above to beat
+      gravity. The <span style="color:var(--green)">green</span> solution hits; the
+      <span style="color:var(--muted)">grey</span> naive aim-at-target shot misses.</div>
+    <div class="row">
+      <div class="col">
+        <canvas id="topCanvas" width="560" height="380"></canvas>
+        <div class="cap">top-down — horizontal lead</div>
+      </div>
+      <div class="col">
+        <canvas id="sideCanvas" width="560" height="380"></canvas>
+        <div class="cap">side-on — gravity drop &amp; hold-over</div>
+      </div>
+    </div>
+    <div class="controls">
+      <label>muzzle v</label><input id="speed" type="range" min="10" max="30" step="1" value="20"><output id="speedO"></output>
+      <label>range</label><input id="range" type="range" min="1.5" max="6" step="0.1" value="3"><output id="rangeO"></output>
+      <label>target speed</label><input id="vlat" type="range" min="0" max="6" step="0.25" value="3"><output id="vlatO"></output>
+      <label>dart drag</label><input id="drag" type="range" min="0" max="0.15" step="0.01" value="0.07"><output id="dragO"></output>
+    </div>
+    <div class="chkline"><label><input type="checkbox" id="gravity" checked> gravity (dart drop)</label>
+      &nbsp;&nbsp;<span class="hint" id="dragNote" style="margin:0"></span></div>
+    <div class="verdict" id="verdict">—</div>
+  </div>
+
+  <footer>
+    Built from <code>src/aegis/{ballistics,stereo}.py</code> — validated by a hit/miss shot simulation in the tests.
+    <br>Part of <a href="https://github.com/MikeBertin/aegis">Project AEGIS</a>.
+  </footer>
+</div>
+
+<script src="../aegis_modules.js?v=6"></script>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<script src="../firecontrol.js?v=5"></script>
+</body>
+</html>

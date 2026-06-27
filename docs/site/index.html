@@ -1,141 +1,248 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>AEGIS — interactive demo</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AEGIS — A Computer-Vision Turret, From First Principles</title>
+<meta name="description" content="A CV-guided pan/tilt turret: detection, tracking, ballistic fire-control and a code-enforced safety gate — with the core algorithms hand-written from scratch and running live in your browser.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://mikebertin.github.io/aegis/">
+<meta property="og:title" content="AEGIS — A Computer-Vision Turret, From First Principles">
+<meta property="og:description" content="Detection, tracking, ballistic fire-control and a code-enforced safety gate — the core algorithms hand-written from scratch and running live in your browser.">
+<meta property="og:image" content="https://mikebertin.github.io/aegis/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="AEGIS — A Computer-Vision Turret, From First Principles">
+<meta name="twitter:description" content="Detection, tracking, ballistic fire-control and a code-enforced safety gate — core algorithms hand-written from scratch, running live.">
+<meta name="twitter:image" content="https://mikebertin.github.io/aegis/og.png">
 <style>
   :root{
-    --bg:#0d1117; --panel:#161b22; --border:#30363d; --fg:#c9d1d9; --muted:#8b949e;
-    --green:#3fb950; --red:#f85149; --amber:#d29922; --blue:#58a6ff; --accent:#76b900;
+    --bg:#0a0a0f; --panel:#13131c; --line:#23232f;
+    --ink:#e7e7ef; --muted:#8a8a9c;
+    --c1:#7cc4ff; --c2:#ffb454; --c3:#7ee787; --c4:#b48cff;
+    --mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--fg);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;line-height:1.5}
-  header{padding:28px 20px 8px;text-align:center;border-bottom:1px solid var(--border)}
-  header h1{margin:0;font-size:26px;letter-spacing:.5px}
-  header p{margin:6px 0 0;color:var(--muted);font-size:14px}
-  .wrap{max-width:980px;margin:0 auto;padding:20px}
-  .panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;
-    padding:18px;margin:18px 0}
-  .panel h2{margin:0 0 4px;font-size:18px}
-  .panel .sub{color:var(--muted);font-size:13px;margin-bottom:14px}
-  .row{display:flex;flex-wrap:wrap;gap:18px}
-  .col{flex:1 1 300px;min-width:280px}
-  canvas{width:100%;background:#010409;border:1px solid var(--border);border-radius:8px;display:block}
-  .controls{display:grid;grid-template-columns:auto 1fr auto;gap:8px 12px;align-items:center;margin-top:8px}
-  .controls label{color:var(--muted);font-size:13px;font-family:monospace}
-  .controls output{font-family:monospace;color:var(--fg);min-width:48px;text-align:right;font-size:13px}
-  input[type=range]{width:100%;accent-color:var(--accent)}
-  .scen{display:flex;gap:14px;margin:10px 0;font-size:13px;color:var(--muted)}
-  .metrics{font-family:monospace;font-size:13px;color:var(--fg);margin-top:10px;
-    background:#010409;border:1px solid var(--border);border-radius:6px;padding:8px 10px}
-  .gate-controls{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:12px;font-size:13px}
-  select,.chk{background:#010409;color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:13px}
-  .hud{font-family:monospace;font-weight:700;font-size:15px;margin-top:10px}
-  .hint{color:var(--muted);font-size:12px;margin-top:6px}
-  a{color:var(--blue)}
-  #loading{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;
-    justify-content:center;flex-direction:column;gap:14px;z-index:10}
-  .spinner{width:34px;height:34px;border:3px solid var(--border);border-top-color:var(--accent);
-    border-radius:50%;animation:spin 0.9s linear infinite}
-  @keyframes spin{to{transform:rotate(360deg)}}
-  footer{text-align:center;color:var(--muted);font-size:12px;padding:24px}
-  .badge{font-family:monospace;font-size:11px;color:var(--accent);border:1px solid var(--accent);
-    border-radius:20px;padding:2px 10px}
-  .evonav{display:flex;gap:10px;justify-content:center;align-items:center;
-    padding:12px;border-bottom:1px solid var(--border);background:var(--panel);font-size:13px;flex-wrap:wrap}
-  .evonav span{color:var(--muted)}
-  .evonav a{color:var(--blue);text-decoration:none;border:1px solid var(--border);border-radius:16px;padding:4px 12px}
-  .evonav a.active{color:var(--bg);background:var(--accent);border-color:var(--accent);font-weight:600}
+  html,body{margin:0}
+  body{
+    background:radial-gradient(1100px 700px at 50% -10%,#16161f,#0a0a0f 60%);
+    color:var(--ink);min-height:100vh;
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  .wrap{max-width:1040px;margin:0 auto;padding:64px 28px 48px}
+  header{margin-bottom:40px}
+  .badge{font-family:var(--mono);font-size:12px;letter-spacing:3px;color:var(--muted);text-transform:uppercase}
+  h1{font-size:46px;margin:10px 0 12px;letter-spacing:-.5px;line-height:1.05;
+     background:linear-gradient(90deg,var(--c1),var(--c2) 38%,var(--c3) 66%,var(--c4));
+     -webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{color:var(--muted);font-size:15.5px;line-height:1.6;max-width:700px;margin:0}
+  .lede b{color:var(--ink);font-weight:600}
+  .safety{margin-top:18px;display:inline-flex;align-items:center;gap:9px;font-size:12.5px;
+    color:var(--muted);font-family:var(--mono);background:var(--panel);border:1px solid var(--line);
+    border-radius:999px;padding:7px 14px}
+  .safety .dot{width:8px;height:8px;border-radius:50%;background:var(--c3);box-shadow:0 0 10px var(--c3)}
+
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;margin-top:36px}
+  @media (max-width:760px){.grid{grid-template-columns:1fr;max-width:440px;margin-inline:auto}}
+
+  a.card{
+    text-decoration:none;color:inherit;background:var(--panel);border:1px solid var(--line);
+    border-radius:16px;overflow:hidden;display:flex;flex-direction:column;
+    transition:transform .15s, border-color .15s, box-shadow .15s;
+  }
+  a.card:hover{transform:translateY(-4px);box-shadow:0 26px 54px -26px #000}
+  a.c1:hover{border-color:var(--c1)} a.c2:hover{border-color:var(--c2)}
+  a.c3:hover{border-color:var(--c3)} a.c4:hover{border-color:var(--c4)}
+  .thumb{height:164px;background:#06070b;position:relative;border-bottom:1px solid var(--line)}
+  .thumb canvas{width:100%;height:100%;display:block}
+  .step{position:absolute;top:11px;left:12px;font-family:var(--mono);font-size:11px;letter-spacing:1.5px;
+    text-transform:uppercase;color:var(--muted);background:rgba(8,8,12,.66);border:1px solid var(--line);
+    border-radius:6px;padding:3px 8px;backdrop-filter:blur(2px)}
+  .body{padding:17px 17px 18px}
+  .tag{font-family:var(--mono);font-size:11px;letter-spacing:1.5px;text-transform:uppercase}
+  .c1 .tag{color:var(--c1)} .c2 .tag{color:var(--c2)} .c3 .tag{color:var(--c3)} .c4 .tag{color:var(--c4)}
+  .body h2{font-size:18.5px;margin:6px 0 6px}
+  .body p{color:var(--muted);font-size:13px;line-height:1.5;margin:0 0 12px}
+  .open{font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px}
+  .c1 .open{color:var(--c1)} .c2 .open{color:var(--c2)} .c3 .open{color:var(--c3)} .c4 .open{color:var(--c4)}
+  .open .arrow{transition:transform .15s}
+  a.card:hover .open .arrow{transform:translateX(4px)}
+
+  .note{margin-top:30px;color:var(--muted);font-size:13px;line-height:1.6}
+  .note b{color:var(--ink);font-weight:600}
+  .note code{font-family:var(--mono);font-size:12px;color:var(--ink)}
+
+  footer{margin-top:42px;padding-top:22px;border-top:1px solid var(--line);
+    color:var(--muted);font-size:12.5px;line-height:1.7}
+  footer b{color:var(--ink);font-weight:600}
+  footer a{color:var(--c1);text-decoration:none}
+  footer a:hover{text-decoration:underline}
 </style>
 </head>
 <body>
-<div id="loading">
-  <div class="spinner"></div>
-  <div id="loadmsg">Booting Python (Pyodide)…</div>
-  <div style="color:var(--muted);font-size:12px;max-width:340px;text-align:center">
-    This page runs the real <code>controller.py</code>, <code>simulator.py</code> and
-    <code>safety.py</code> from the AEGIS repo — in your browser.
-  </div>
-</div>
-
-<header>
-  <h1>🛡️ AEGIS — interactive demo</h1>
-  <p>The actual turret control &amp; safety code, running live via Pyodide &nbsp;<span class="badge">real Python</span></p>
-</header>
-<div class="evonav">
-  <span>project evolution:</span>
-  <a href="index.html" class="active">① Control &amp; Safety (M1–M2.5)</a>
-  <a href="firecontrol.html">② Stereo Fire-Control (M2.6)</a>
-  <a href="cnn.html">③ Vision / CNN (M5)</a>
-  <a href="algorithms.html">④ Algorithms</a>
-</div>
-
 <div class="wrap">
+  <header>
+    <div class="badge">AEGIS</div>
+    <h1>A Computer-Vision Turret,<br>From First Principles</h1>
+    <p class="lede">
+      A pan/tilt turret that <b>sees, tracks and aims</b> through the full
+      perception → control → fire-control loop. The interesting parts — PID control, Kalman and
+      α-β filtering, ballistic intercept, stereo depth, optimal assignment, and a convolutional
+      net — are <b>hand-written from scratch</b> and tested against references. Every demo below
+      runs that <b>real Python</b> in your browser via Pyodide.
+    </p>
+    <div class="safety"><span class="dot"></span> safety policy enforced in code — track all, fire inanimate only</div>
+  </header>
 
-  <!-- PANEL 1: control tuner -->
-  <div class="panel">
-    <h2>① PID control tuner</h2>
-    <div class="sub">Drag the gains and watch the turret (left) chase the target while the
-      response curve (right) redraws. The plant is an integrator — high Ki hurts tracking.</div>
-    <div class="scen">
-      target motion:
-      <label><input type="radio" name="scen" value="sine" checked> sine (moving)</label>
-      <label><input type="radio" name="scen" value="step"> step</label>
-      <label><input type="radio" name="scen" value="ramp"> ramp</label>
-    </div>
-    <div class="scen" style="border-top:1px solid var(--border);padding-top:10px">
-      <label title="α-β velocity estimate fed straight to the servos — cancels tracking lag">
-        <input type="checkbox" id="ff"> <b>velocity feedforward</b> (kill the lag)</label>
-      <label style="display:flex;align-items:center;gap:8px">lead&nbsp;
-        <input id="lead" type="range" min="0" max="400" step="20" value="0" style="width:120px">
-        <output id="leadO">0</output>&nbsp;ms</label>
-      <span class="hint" style="margin:0">(lead aims ahead by dart flight-time)</span>
-    </div>
-    <div class="row">
-      <div class="col"><canvas id="vizTurret" width="560" height="380"></canvas></div>
-      <div class="col"><canvas id="vizPlot" width="560" height="380"></canvas></div>
-    </div>
-    <div class="controls">
-      <label>Kp</label><input id="kp" type="range" min="0" max="400" step="5" value="200"><output id="kpO"></output>
-      <label>Ki</label><input id="ki" type="range" min="0" max="80"  step="1" value="8"><output id="kiO"></output>
-      <label>Kd</label><input id="kd" type="range" min="0" max="40"  step="1" value="14"><output id="kdO"></output>
-      <label>slew°/s</label><input id="slew" type="range" min="50" max="500" step="10" value="300"><output id="slewO"></output>
-    </div>
-    <div class="metrics" id="metrics">—</div>
+  <div class="grid">
+    <a class="card c1" href="control/">
+      <div class="thumb"><span class="step">Aim</span><canvas id="t-control"></canvas></div>
+      <div class="body">
+        <div class="tag">Control &amp; Safety</div>
+        <h2>PID Control &amp; the Safety Gate</h2>
+        <p>Tune the real PID loop driving the gimbal onto a moving target, then exercise the
+          live "fire inanimate only" safety gate.</p>
+        <span class="open">Open demo <span class="arrow">→</span></span>
+      </div>
+    </a>
+
+    <a class="card c2" href="firecontrol/">
+      <div class="thumb"><span class="step">Range &amp; Fire</span><canvas id="t-fire"></canvas></div>
+      <div class="body">
+        <div class="tag">Fire-Control</div>
+        <h2>Stereo Fire-Control</h2>
+        <p>Recover range from a stereo pair, then solve a ballistic intercept — lead, gravity
+          hold-over and drag — so dart and target meet.</p>
+        <span class="open">Open demo <span class="arrow">→</span></span>
+      </div>
+    </a>
+
+    <a class="card c3" href="vision/">
+      <div class="thumb"><span class="step">See</span><canvas id="t-vision" class="pix"></canvas></div>
+      <div class="body">
+        <div class="tag">Vision · CNN</div>
+        <h2>A CNN, Written From Scratch</h2>
+        <p>A convolutional net built in pure NumPy — conv, pool, FC and the backprop that trained
+          it, zero autograd — classifying patches live.</p>
+        <span class="open">Open demo <span class="arrow">→</span></span>
+      </div>
+    </a>
+
+    <a class="card c4" href="algorithms/">
+      <div class="thumb"><span class="step">Estimate</span><canvas id="t-algo"></canvas></div>
+      <div class="body">
+        <div class="tag">Algorithms</div>
+        <h2>Algorithms From Scratch</h2>
+        <p>Kalman filtering, the Hungarian assignment algorithm, non-max suppression and
+          block-matching stereo — each from first principles.</p>
+        <span class="open">Open demo <span class="arrow">→</span></span>
+      </div>
+    </a>
   </div>
 
-  <!-- PANEL 2: safety gate -->
-  <div class="panel">
-    <h2>② Safety-gate playground</h2>
-    <div class="sub"><b>Drag the blue person box</b> toward the target. The gate is the real
-      <code>SafetyGate.evaluate()</code> — <i>track all, fire inanimate only</i>.</div>
-    <canvas id="vizSafety" width="900" height="360"></canvas>
-    <div class="gate-controls">
-      <span>target class:
-        <select id="targetClass" class="chk">
-          <option value="balloon">balloon (fireable)</option>
-          <option value="sports ball">sports ball (fireable)</option>
-          <option value="chair">chair (non-fireable)</option>
-          <option value="person">person (forbidden)</option>
-        </select>
-      </span>
-      <label><input type="checkbox" id="armed" checked> armed</label>
-      <label><input type="checkbox" id="locked" checked> locked (aim error small)</label>
-    </div>
-    <div class="hud" id="gateHud">—</div>
-    <div class="hint">Try: drag the person onto the balloon · switch the target to “person” · un-arm.</div>
-  </div>
+  <p class="note">
+    <b>Built for the build.</b> AEGIS targets an NVIDIA Jetson Orin Nano. The whole pipeline is
+    validated in simulation with a fast pure-Python test suite; the bug-prone maths is written
+    without heavy dependencies so it can be unit-tested — and bundled, unchanged, into the demos
+    above by <code>tools/build_site.py</code>.
+  </p>
 
   <footer>
-    Built from <code>src/aegis/{tracker,controller,simulator,safety}.py</code> — the same code the turret runs.
-    <br>Part of <a href="https://github.com/MikeBertin/aegis">Project AEGIS</a>. Modules bundled by <code>tools/build_site.py</code>.
+    <b>AEGIS</b> — named for the shield of Athena. Built by Mike Bertin.
+    The demos run entirely in your browser; nothing is sent anywhere.
+    <br>Source on <a href="https://github.com/MikeBertin/aegis">GitHub</a> · MIT licensed.
   </footer>
 </div>
 
-<script src="aegis_modules.js?v=5"></script>
-<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
-<script src="demo.js?v=3"></script>
+<script>
+// ---- tiny live teasers for the four cards (self-contained, no deps) ----
+const TAU = 6.283185307;
+function fit(cv){ const r=cv.getBoundingClientRect(), d=Math.max(1,Math.min(2,devicePixelRatio||1));
+  cv.width=Math.round(r.width*d); cv.height=Math.round(r.height*d);
+  const c=cv.getContext('2d'); c.setTransform(d,0,0,d,0,0); return [c,r.width,r.height]; }
+
+// ① Control — a reticle chasing a sinusoidal target with PID-like lag
+function teaseControl(cv){
+  let aim=0;
+  return (t)=>{ const [c,W,H]=fit(cv); c.clearRect(0,0,W,H);
+    const cy=H/2, tx=W*0.5+Math.sin(t*1.4)*W*0.30, ty=cy+Math.sin(t*0.9)*H*0.16;
+    aim += (tx-aim)*0.06;                                  // first-order lag toward target
+    // target
+    c.fillStyle='#ffffff'; c.globalAlpha=.9; c.beginPath(); c.arc(tx,ty,5,0,TAU); c.fill(); c.globalAlpha=1;
+    c.strokeStyle='rgba(255,255,255,.25)'; c.beginPath(); c.arc(tx,ty,11,0,TAU); c.stroke();
+    // reticle (lagging)
+    const rx=aim, ry=cy+Math.sin(t*0.9-0.5)*H*0.16;
+    c.strokeStyle='#7cc4ff'; c.lineWidth=1.6;
+    c.beginPath(); c.arc(rx,ry,14,0,TAU); c.stroke();
+    c.beginPath(); c.moveTo(rx-20,ry); c.lineTo(rx-6,ry); c.moveTo(rx+6,ry); c.lineTo(rx+20,ry);
+    c.moveTo(rx,ry-20); c.lineTo(rx,ry-6); c.moveTo(rx,ry+6); c.lineTo(rx,ry+20); c.stroke();
+  };
+}
+
+// ② Fire-control — a leading ballistic shot (up-and-over) to a crossing target
+function teaseFire(cv){
+  return (t)=>{ const [c,W,H]=fit(cv); c.clearRect(0,0,W,H);
+    const phase=(t*0.5)%1;                                  // one shot per cycle
+    const gx=W*0.12, gy=H*0.80;                             // gun (bottom-left)
+    const tgtX=W*0.55+ (W*0.30)*phase, tgtY=H*0.34+Math.sin(t)*8; // moving target (upper)
+    const lead=tgtX+W*0.06, arcH=H*0.42;                   // aim ahead; peak rise above the chord
+    // y grows downward, so SUBTRACT the parabola to bulge the arc UPWARD (gravity pulls it back down)
+    const yAt=(s)=> (1-s)*gy + s*tgtY - arcH*4*s*(1-s);
+    const xAt=(s)=> gx+(lead-gx)*s;
+    // ballistic arc
+    c.strokeStyle='rgba(255,180,84,.32)'; c.lineWidth=1.4; c.beginPath();
+    for(let s=0;s<=1.0001;s+=0.04){ s?c.lineTo(xAt(s),yAt(s)):c.moveTo(xAt(s),yAt(s)); }
+    c.stroke();
+    // target
+    c.fillStyle='#ffb454'; c.beginPath(); c.arc(tgtX,tgtY,6,0,TAU); c.fill();
+    // dart travelling the arc
+    const x=xAt(phase), y=yAt(phase);
+    c.fillStyle='#ffd9a8'; c.beginPath(); c.arc(x,y,3.2,0,TAU); c.fill();
+    // gun
+    c.fillStyle='#8a8a9c'; c.fillRect(gx-7,gy-4,14,9);
+  };
+}
+
+// ③ Vision — shimmering feature-map grid with a "balloon" lighting up
+function teaseVision(cv){
+  const N=12;
+  return (t)=>{ const [c,W,H]=fit(cv); c.clearRect(0,0,W,H);
+    const cw=W/N, ch=H/N, cxp=N*0.5, cyp=N*0.46, R=2.6;
+    for(let j=0;j<N;j++) for(let i=0;i<N;i++){
+      const d=Math.hypot(i-cxp,j-cyp);
+      const blob=Math.max(0,1-d/R);                         // central balloon shape
+      const sh=0.18+0.14*Math.sin(t*2+i*0.7+j*0.9);         // shimmer
+      const v=Math.min(1,blob*0.95+sh);
+      const g=Math.round(60+v*150);
+      c.fillStyle=`rgb(${Math.round(40+blob*40)},${g},${Math.round(70+v*80)})`;
+      c.fillRect(i*cw+1,j*ch+1,cw-2,ch-2);
+    }
+  };
+}
+
+// ④ Algorithms — noisy measurements + a smooth Kalman-style estimate
+function teaseAlgo(cv){
+  const pts=[];
+  return (t)=>{ const [c,W,H]=fit(cv); c.clearRect(0,0,W,H);
+    const truth=(x)=> H*0.5 + Math.sin(x/W*TAU*1.3 + t*0.6)*H*0.22;
+    // true path
+    c.strokeStyle='rgba(138,138,156,.55)'; c.lineWidth=1.4; c.beginPath();
+    for(let x=0;x<=W;x+=6){ x?c.lineTo(x,truth(x)):c.moveTo(x,truth(x)); } c.stroke();
+    // estimate (slightly smoothed true path)
+    c.strokeStyle='#b48cff'; c.lineWidth=2; c.beginPath();
+    for(let x=0;x<=W;x+=6){ const y=truth(x)+Math.sin(x*0.05)*2; x?c.lineTo(x,y):c.moveTo(x,y); } c.stroke();
+    // noisy measurements (twinkle)
+    for(let k=0;k<22;k++){ const x=(k/21)*W, y=truth(x)+(Math.sin(t*5+k*2.3))*10;
+      c.fillStyle='rgba(248,81,73,.85)'; c.beginPath(); c.arc(x,y,2.1,0,TAU); c.fill(); }
+  };
+}
+
+const ticks=[ teaseControl(document.getElementById('t-control')),
+              teaseFire(document.getElementById('t-fire')),
+              teaseVision(document.getElementById('t-vision')),
+              teaseAlgo(document.getElementById('t-algo')) ];
+(function loop(now){ const t=now/1000; for(const f of ticks) f(t); requestAnimationFrame(loop); })(0);
+</script>
 </body>
 </html>

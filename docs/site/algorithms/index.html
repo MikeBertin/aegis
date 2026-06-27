@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AEGIS — Algorithms From Scratch</title>
+<meta name="description" content="Kalman filtering, the Hungarian assignment algorithm, non-max suppression and block-matching stereo — all hand-written and running live. From Project AEGIS." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://mikebertin.github.io/aegis/algorithms/" />
+<meta property="og:title" content="AEGIS — Algorithms From Scratch" />
+<meta property="og:description" content="Kalman, Hungarian assignment, non-max suppression and block-matching stereo — first-principles builds running live in your browser." />
+<meta property="og:image" content="https://mikebertin.github.io/aegis/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://mikebertin.github.io/aegis/og.png" />
+<style>
+  :root{
+    --bg:#0a0a0f; --panel:#13131c; --line:#23232f; --ink:#e7e7ef; --muted:#8a8a9c;
+    --accent:#b48cff; --accent2:#7cc4ff;
+    --green:#3fb950; --red:#f85149; --amber:#d29922; --blue:#58a6ff;
+    --mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+    --fg:var(--ink); --border:var(--line);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:radial-gradient(1100px 700px at 50% -10%,#16121f,#0a0a0f 60%);
+    color:var(--ink);min-height:100vh;line-height:1.5;
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+  nav.evo{max-width:1040px;margin:0 auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+    padding:22px 28px 0;font-family:var(--mono);font-size:12px}
+  nav.evo .home{color:var(--ink);text-decoration:none;font-weight:600;letter-spacing:.5px;margin-right:4px}
+  nav.evo .home:hover{color:var(--accent)}
+  nav.evo .sep{color:var(--line)}
+  nav.evo a.lnk{color:var(--muted);text-decoration:none;padding:4px 11px;border:1px solid var(--line);
+    border-radius:999px;transition:.13s}
+  nav.evo a.lnk:hover{color:var(--ink);border-color:#34344a}
+  nav.evo a.lnk.active{color:#06070b;background:var(--accent);border-color:transparent;font-weight:600}
+  .wrap{max-width:1040px;margin:0 auto;padding:26px 28px 56px}
+  header.hero{margin:6px 0 24px}
+  .badge{font-family:var(--mono);font-size:12px;letter-spacing:3px;color:var(--muted);text-transform:uppercase}
+  h1{font-size:40px;margin:9px 0 12px;letter-spacing:-.5px;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{color:var(--muted);font-size:15px;line-height:1.6;max-width:720px;margin:0}
+  .lede b{color:var(--ink);font-weight:600}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin:18px 0}
+  .panel h2{margin:0 0 5px;font-size:18px}
+  .panel .sub{color:var(--muted);font-size:13.5px;margin-bottom:14px;line-height:1.55}
+  .panel .sub b{color:var(--ink)} .panel .sub code{color:var(--accent)}
+  .row{display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start}
+  canvas{background:#08080c;border:1px solid var(--line);border-radius:10px;display:block;max-width:100%;
+    box-shadow:0 18px 50px -30px #000}
+  .controls{display:grid;grid-template-columns:auto 1fr auto;gap:9px 12px;align-items:center;margin-top:12px;max-width:460px}
+  .controls label{color:var(--muted);font-size:12.5px;font-family:var(--mono)}
+  .controls output{font-family:var(--mono);color:var(--ink);min-width:56px;text-align:right;font-size:12.5px}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .readout{font-family:var(--mono);font-size:13px;color:var(--ink);margin-top:10px;
+    background:#08080c;border:1px solid var(--line);border-radius:8px;padding:9px 11px;display:inline-block}
+  .label{color:var(--muted);font-size:12px;margin:4px 0;text-align:center}
+  table.cost{border-collapse:collapse;font-family:var(--mono)}
+  table.cost td{border:1px solid var(--line);padding:0}
+  table.cost input{width:46px;height:38px;text-align:center;background:#08080c;color:var(--ink);
+    border:none;font-family:var(--mono);font-size:14px}
+  table.cost td.assigned{background:color-mix(in srgb,var(--accent) 24%,transparent)}
+  table.cost td.assigned input{color:var(--accent);font-weight:700}
+  .legend{font-size:12px;color:var(--muted);margin-top:8px}
+  a{color:var(--accent)}
+  #loading{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:14px;z-index:10;text-align:center;padding:0 20px}
+  .spinner{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .9s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #loading code{color:var(--accent)}
+  footer{margin-top:44px;padding-top:22px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px;line-height:1.7}
+  footer code{color:var(--muted)} footer a{color:var(--accent);text-decoration:none}
+  footer a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<div id="loading">
+  <div class="spinner"></div>
+  <div id="loadmsg">Booting Python + NumPy (Pyodide)…</div>
+  <div style="color:var(--muted);font-size:12px;max-width:380px">
+    Every panel runs the real hand-written module (<code>kalman.py</code>,
+    <code>assignment.py</code>, <code>nms.py</code>, <code>stereo_match.py</code>) in your browser.
+  </div>
+</div>
+
+<nav class="evo">
+  <a class="home" href="../">🛡 AEGIS</a><span class="sep">/</span>
+  <a class="lnk" href="../control/">Control &amp; Safety</a>
+  <a class="lnk" href="../firecontrol/">Fire-Control</a>
+  <a class="lnk" href="../vision/">Vision · CNN</a>
+  <a class="lnk active" href="../algorithms/">Algorithms</a>
+</nav>
+
+<div class="wrap">
+  <header class="hero">
+    <div class="badge">First principles · real NumPy</div>
+    <h1>Algorithms From Scratch</h1>
+    <p class="lede">
+      The classic building blocks of a tracking pipeline, each <b>hand-written</b> and tested against
+      a reference, then run live here: a <b>Kalman filter</b>, the <b>Hungarian</b> assignment
+      algorithm, <b>non-max suppression</b>, and <b>block-matching stereo</b>.
+    </p>
+  </header>
+
+  <!-- PANEL 1: Kalman -->
+  <div class="panel">
+    <h2>① Kalman filter — tracking through noise</h2>
+    <div class="sub">A true path (grey) is seen only through noisy measurements (red dots). The
+      <span style="color:var(--green)">Kalman estimate</span> (and its ±2σ uncertainty band) is recovered
+      by <code>kalman.py</code>. More measurement noise → trust the model more; more process noise → trust the data more.</div>
+    <canvas id="kalCanvas" width="900" height="280"></canvas>
+    <div class="controls">
+      <label>measure noise</label><input id="kR" type="range" min="0.2" max="6" step="0.2" value="4"><output id="kRo"></output>
+      <label>process noise</label><input id="kQ" type="range" min="0.05" max="8" step="0.05" value="0.7"><output id="kQo"></output>
+    </div>
+    <div class="readout" id="kReadout">—</div>
+  </div>
+
+  <!-- PANEL 2: Hungarian -->
+  <div class="panel">
+    <h2>② Hungarian algorithm — optimal assignment</h2>
+    <div class="sub">Edit the cost matrix (rows = tracks, cols = detections). <code>assignment.py</code> finds the
+      assignment with the <b>minimum total cost</b> — highlighted. Compare it to greedy "cheapest pair first".</div>
+    <div class="row">
+      <table class="cost" id="costTable"></table>
+      <div>
+        <div class="readout" id="hReadout">—</div>
+        <div class="legend">Click any cell to edit. Highlighted = the optimal assignment.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL 3: NMS -->
+  <div class="panel">
+    <h2>③ Non-max suppression — one box per object</h2>
+    <div class="sub">A detector fires many overlapping boxes per object. <code>nms.py</code> keeps the highest-scoring
+      box and suppresses its duplicates. Slide the IoU threshold; <span style="color:var(--green)">kept</span> vs
+      <span style="color:var(--muted)">suppressed</span>.</div>
+    <canvas id="nmsCanvas" width="900" height="230"></canvas>
+    <div class="controls">
+      <label>IoU threshold</label><input id="nT" type="range" min="0.1" max="0.9" step="0.05" value="0.45"><output id="nTo"></output>
+    </div>
+    <div class="readout" id="nReadout">—</div>
+  </div>
+
+  <!-- PANEL 4: Stereo -->
+  <div class="panel">
+    <h2>④ Block-matching stereo — disparity from a pair</h2>
+    <div class="sub">For each pixel, <code>stereo_match.py</code> slides a window along the row of the other image to
+      find the shift that matches best — the disparity (→ depth). The closer square shows a larger shift.</div>
+    <div class="row" id="stereoRow">
+      <div><canvas id="stLeft" width="150" height="150"></canvas><div class="label">left</div></div>
+      <div><canvas id="stRight" width="150" height="150"></canvas><div class="label">right</div></div>
+      <div><canvas id="stDisp" width="150" height="150"></canvas><div class="label">recovered disparity</div></div>
+    </div>
+    <div class="controls">
+      <label>block size</label><input id="sB" type="range" min="3" max="11" step="2" value="7"><output id="sBo"></output>
+      <label>max disparity</label><input id="sD" type="range" min="8" max="28" step="2" value="20"><output id="sDo"></output>
+    </div>
+    <div class="readout" id="sReadout">—</div>
+  </div>
+
+  <footer>
+    Runs <code>src/aegis/{kalman,assignment,nms,stereo_match}.py</code> in Pyodide. Part of
+    <a href="https://github.com/MikeBertin/aegis">Project AEGIS</a>.
+  </footer>
+</div>
+
+<script src="../aegis_modules.js?v=6"></script>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<script src="../algorithms.js?v=4"></script>
+</body>
+</html>

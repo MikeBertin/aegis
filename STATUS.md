@@ -2,8 +2,8 @@
 
 State: 🟢 ACTIVE
 Phase: 3 — BUILD (M1–M4 software all done; hardware-gated)
-Last action: 2026-06-27 — Repo made PUBLIC (github.com/MikeBertin/aegis) after a clean secret scan; added MIT LICENSE + a GitHub Pages deploy workflow (.github/workflows/pages.yml serving docs/site at root → mikebertin.github.io/aegis). Pages enabled via Actions (build_type=workflow). README has a live-demos link + MIT badge; demo footers repointed to the repo URL. NEXT SESSION: (1) verify the Pages deploy succeeded + the live site works; (2) restyle the 4 demo pages to match the chiron/empedocles house style (see HANDOVER.md). 152 tests green; 23 commits.
-Next action: Decide when to make the repo public + enable GitHub Pages (unlocks the live demo URL). To unblock the physical build, ORDER the M3 kit (~£425, docs/HARDWARE.md). M4 real-data path (capture→label→train) can start now on the laptop.
+Last action: 2026-06-27 — Pages deploy confirmed live, then RESTYLED the demos to the chiron/empedocles house style (option A): new card-grid landing (index.html) with live canvas teasers + per-card accents; the 4 demos moved into subfolders (control/, firecontrol/, vision/, algorithms/), each restyled with a house-style nav, gradient hero, dark palette + per-page accent; added OG/Twitter meta + a generated og.png (1200×630). All JS/Pyodide logic untouched (scripts now referenced as ../*.js). Verified all 5 pages in the preview browser: Pyodide boots, every panel computes, zero console errors. README demo section updated to the new subfolder paths.
+Next action: Commit the restyle inside the aegis repo (not yet committed) — push triggers the Pages redeploy; then sanity-check the live site. To unblock the physical build, ORDER the M3 kit (~£425, docs/HARDWARE.md). M4 real-data path (capture→label→train) can start now on the laptop.
 Blocked by: Hardware not ordered (M3 physical). All M1–M4 software is built & tested; remaining work is real-world: servos, real dataset, on-Jetson TensorRT.
 Next milestone: M3 physical bring-up (gimbal tracks under real servos, darts out) — needs hardware
 Outcome: —
