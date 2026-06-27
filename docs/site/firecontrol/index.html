@@ -72,6 +72,30 @@
   footer{margin-top:44px;padding-top:22px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px;line-height:1.7}
   footer code{color:var(--muted)} footer a{color:var(--accent);text-decoration:none}
   footer a:hover{text-decoration:underline}
+  /* hover-to-explain popovers */
+  .x{color:var(--accent);border-bottom:1px dotted currentColor;cursor:help;white-space:nowrap}
+  .x::after{content:'ⓘ';font-size:.7em;vertical-align:.35em;margin-left:1px;opacity:.7}
+  .x:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
+  #pop{position:fixed;z-index:60;max-width:300px;background:#15151f;border:1px solid #2e2e3e;
+    border-radius:12px;padding:13px 15px;box-shadow:0 22px 55px -16px #000,0 0 0 1px #000;
+    font-size:13px;line-height:1.55;visibility:hidden;opacity:0;transform:translateY(4px);
+    pointer-events:none;transition:opacity .13s,transform .13s}
+  #pop.show{visibility:visible;opacity:1;transform:none;pointer-events:auto}
+  #pop h4{margin:0 0 7px;font-size:13.5px;color:var(--accent)}
+  #pop p{margin:0 0 8px}#pop p:last-child{margin:0}
+  #pop b{color:var(--ink);font-weight:600}
+  #pop .muted{color:var(--muted);font-size:12px}
+  #pop .eq{font-family:var(--mono);background:#0e0e16;border:1px solid var(--line);border-radius:7px;
+    padding:8px 10px;margin:9px 0;font-size:13px;text-align:center;color:#e6ebff}
+  /* "things to notice" cards */
+  .notice{margin-top:30px;border-top:1px solid var(--line);padding-top:24px}
+  .notice-title{font-size:12px;text-transform:uppercase;letter-spacing:1.6px;color:var(--muted);margin:0 0 14px;font-weight:600}
+  .notice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+  @media (max-width:680px){.notice-grid{grid-template-columns:1fr}}
+  .ncard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 16px}
+  .ncard h3{margin:0 0 7px;font-size:14px;font-weight:600}
+  .ncard p{margin:0 0 11px;color:var(--muted);font-size:12.5px;line-height:1.5}
+  .ncard .why{font-size:12.5px;font-weight:600}
 </style>
 </head>
 <body>
@@ -105,9 +129,9 @@
   <!-- PANEL A: stereo ranging -->
   <div class="panel">
     <h2>① Stereo ranging</h2>
-    <div class="sub">A stereo pair recovers range from <b>disparity</b> (the pixel shift between the
-      two cameras): <code>Z = focal · baseline / disparity</code>. Note how the range
-      uncertainty grows with the <b>square</b> of distance — stereo is sharp up close, vague far away.</div>
+    <div class="sub">A stereo pair recovers range from <b><span class="x" data-pop="disparity">disparity</span></b>
+      (the pixel shift between the two cameras): <code>Z = focal · baseline / disparity</code>. Note how the range
+      uncertainty grows with the <b><span class="x" data-pop="rangeerr">square</span></b> of distance — stereo is sharp up close, vague far away.</div>
     <canvas id="stereoCanvas" width="900" height="180"></canvas>
     <div class="stereo-readout" id="stereoReadout">—</div>
   </div>
@@ -116,8 +140,8 @@
   <div class="panel">
     <h2>② Ballistic fire-control solver</h2>
     <div class="sub">Given the range, the dart's muzzle speed and the target's velocity, solve for the
-      launch direction so dart and target <b>meet</b> — leading horizontally and aiming above to beat
-      gravity. The <span style="color:var(--green)">green</span> solution hits; the
+      launch direction so dart and target <b>meet</b> — <span class="x" data-pop="lead">leading horizontally</span>
+      and aiming above to beat <span class="x" data-pop="holdover">gravity</span>. The <span style="color:var(--green)">green</span> solution hits; the
       <span style="color:var(--muted)">grey</span> naive aim-at-target shot misses.</div>
     <div class="row">
       <div class="col">
@@ -130,15 +154,45 @@
       </div>
     </div>
     <div class="controls">
-      <label>muzzle v</label><input id="speed" type="range" min="10" max="30" step="1" value="20"><output id="speedO"></output>
+      <label><span class="x" data-pop="muzzle">muzzle v</span></label><input id="speed" type="range" min="10" max="30" step="1" value="20"><output id="speedO"></output>
       <label>range</label><input id="range" type="range" min="1.5" max="6" step="0.1" value="3"><output id="rangeO"></output>
       <label>target speed</label><input id="vlat" type="range" min="0" max="6" step="0.25" value="3"><output id="vlatO"></output>
-      <label>dart drag</label><input id="drag" type="range" min="0" max="0.15" step="0.01" value="0.07"><output id="dragO"></output>
+      <label><span class="x" data-pop="drag">dart drag</span></label><input id="drag" type="range" min="0" max="0.15" step="0.01" value="0.07"><output id="dragO"></output>
     </div>
     <div class="chkline"><label><input type="checkbox" id="gravity" checked> gravity (dart drop)</label>
       &nbsp;&nbsp;<span class="hint" id="dragNote" style="margin:0"></span></div>
     <div class="verdict" id="verdict">—</div>
   </div>
+
+  <section class="notice">
+    <h2 class="notice-title">Things to notice</h2>
+    <div class="notice-grid">
+      <div class="ncard">
+        <h3>Depth from two eyes</h3>
+        <p>The same point lands at slightly different columns in the left and right cameras; that shift
+          <i>is</i> the range. Nearer objects shift more, so range is inversely proportional to disparity.</p>
+        <span class="x why" data-pop="disparity">How disparity → range</span>
+      </div>
+      <div class="ncard">
+        <h3>Far away gets fuzzy</h3>
+        <p>Because range ∝ 1/disparity, a fixed ±1&nbsp;px matching error blows up with the square of
+          distance. Stereo is crisp up close (±cm) and vague far off (±tens of cm).</p>
+        <span class="x why" data-pop="rangeerr">Why error grows with distance²</span>
+      </div>
+      <div class="ncard">
+        <h3>Lead the target</h3>
+        <p>The dart has flight time, so aiming <i>at</i> a mover lands behind it. Push target-speed up and
+          watch the lead angle grow — the solver aims where the target <i>will</i> be.</p>
+        <span class="x why" data-pop="lead">Lead = velocity × time-of-flight</span>
+      </div>
+      <div class="ncard">
+        <h3>Hold over for gravity &amp; drag</h3>
+        <p>Gravity drops the dart, so the launch aims <i>above</i> the target. Add drag and it bleeds speed
+          mid-flight — shortening range and steepening the drop, so the hold-over grows.</p>
+        <span class="x why" data-pop="drag">What drag does</span>
+      </div>
+    </div>
+  </section>
 
   <footer>
     Built from <code>src/aegis/{ballistics,stereo}.py</code> — validated by a hit/miss shot simulation in the tests.
@@ -146,8 +200,65 @@
   </footer>
 </div>
 
+<div id="pop"></div>
+
 <script src="../aegis_modules.js?v=6"></script>
 <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
 <script src="../firecontrol.js?v=5"></script>
+<script>
+// ---- hover-to-explain popovers (independent of the Pyodide demo) ----
+const POP = {
+  disparity: { title:'Disparity', html:`
+    <p>The horizontal pixel shift of the same point between the left and right cameras. Nearer objects
+       shift more, so range is recovered from it directly.</p>
+    <div class="eq">Z = focal · baseline / disparity</div>` },
+  rangeerr: { title:'Quadratic range error', html:`
+    <p>Since range ∝ 1/disparity, a fixed matching error of ±1&nbsp;px maps to a range error that grows
+       with the <b>square</b> of distance.</p>
+    <p class="muted">Sharp up close, vague far away — which is why the turret prefers near targets.</p>` },
+  lead: { title:'Lead', html:`
+    <p>A dart has flight time, so aiming <i>at</i> a moving target lands behind it. <b>Lead</b> aims ahead
+       by the target's velocity over the dart's time-of-flight.</p>
+    <div class="eq">aim = position + velocity · t_flight</div>` },
+  holdover: { title:'Gravity hold-over', html:`
+    <p>Gravity pulls the dart down over its flight, so the launch must point <b>above</b> the target by the
+       hold-over angle.</p>
+    <p class="muted">Longer range or a slower dart ⇒ more time falling ⇒ more hold-over.</p>` },
+  muzzle: { title:'Muzzle speed', html:`
+    <p>The dart's launch speed. Faster ⇒ shorter time-of-flight ⇒ <b>less</b> lead and <b>less</b> gravity
+       hold-over, and a flatter, more forgiving shot.</p>` },
+  drag: { title:'Aerodynamic drag', html:`
+    <p>Air resistance bleeds the dart's speed mid-flight, so it arrives slower and lower than a drag-free
+       shot would.</p>
+    <p class="muted">The solver compensates by holding over more — drag effectively shortens range.</p>` },
+};
+(function(){
+  const pop=document.getElementById('pop'); let pinned=null;
+  function show(el){
+    const d=POP[el.dataset.pop]; if(!d) return;
+    pop.innerHTML='<h4>'+d.title+'</h4>'+d.html;
+    pop.classList.add('show');
+    const r=el.getBoundingClientRect(), p=pop.getBoundingClientRect(), m=10;
+    let left=Math.max(m, Math.min(r.left+r.width/2-p.width/2, innerWidth-p.width-m));
+    let top=r.top-p.height-10; if(top<m) top=r.bottom+10;
+    pop.style.left=left+'px'; pop.style.top=top+'px';
+  }
+  function hide(){ pop.classList.remove('show'); }
+  document.querySelectorAll('.x').forEach(el=>{
+    el.tabIndex=0; el.setAttribute('role','button');
+    el.addEventListener('mouseenter',()=>{ if(!pinned) show(el); });
+    el.addEventListener('mouseleave',()=>{ if(!pinned) hide(); });
+    el.addEventListener('focus',()=>{ if(!pinned) show(el); });
+    el.addEventListener('blur',()=>{ if(!pinned) hide(); });
+    el.addEventListener('click',e=>{ e.stopPropagation();
+      if(pinned===el){ pinned=null; hide(); } else { pinned=el; show(el); } });
+    el.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); el.click(); } });
+  });
+  pop.addEventListener('click',e=>e.stopPropagation());
+  document.addEventListener('click',()=>{ if(pinned){ pinned=null; hide(); } });
+  addEventListener('keydown',e=>{ if(e.key==='Escape'&&pinned){ pinned=null; hide(); } });
+  addEventListener('scroll',()=>{ if(pinned) show(pinned); }, true);
+})();
+</script>
 </body>
 </html>

@@ -6,6 +6,19 @@ Decisions, progress notes, session diary. Most recent first.
 
 ---
 
+## 2026-06-27 — Demo explainers: hover popovers + "things to notice" cards (all 4 pages)
+- Ported chiron's two depth touches to every demo: inline **hover-to-explain popovers** (`.x` spans + a
+  shared `#pop` + the IIFE wiring; hover/focus/click-pin/Esc) and a **"things to notice"** card grid
+  (`.notice`/`.ncard`, 2×2). CSS reuses `var(--accent)` so each popover/term picks up the page accent.
+- Did **control first as the agreed template** (committed in fd72654), Mike OK'd, then replicated to
+  fire-control, vision, algorithms with per-page jargon + behaviours:
+  - control: PID, integrator, feedforward, lead, slew, armed, lock, α-β, Ki wind-up, interlock.
+  - fire-control: disparity, quadratic range error, lead, gravity hold-over, muzzle speed, drag.
+  - vision: backprop, kernel, feature map, relu, pool, fc, the negative set (red-square ⇒ score 0).
+  - algorithms: ±2σ, Q vs R (notes the CV-lag lesson), Hungarian/assignment, greedy, IoU, disparity, block size.
+- Logic untouched (popover script is independent of Pyodide). Verified each page in-browser: every term
+  resolves to a definition (no blanks), 4 cards each, demos still compute, **zero console errors**.
+
 ## 2026-06-27 — Demos restyled to the house style (option A) | designed landing + subfolders
 - **Pages deploy confirmed live** (Mike checked) before starting.
 - **Restructure (option A, Mike's call):** new card-grid **landing** at `docs/site/index.html`; the 4 demos moved (`git mv`) into subfolders — `control/`, `firecontrol/`, `vision/` (was cnn), `algorithms/` — each as `index.html`. Shared JS bundles stay at `docs/site/` root and are referenced as `../*.js` (they're self-contained — Python is written into Pyodide's FS, no relative fetch — so `../` is safe; `tools/build_site.py` output path unchanged). `pages.yml` artifact path (`docs/site`) still correct.

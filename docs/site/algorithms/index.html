@@ -74,6 +74,30 @@
   footer{margin-top:44px;padding-top:22px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px;line-height:1.7}
   footer code{color:var(--muted)} footer a{color:var(--accent);text-decoration:none}
   footer a:hover{text-decoration:underline}
+  /* hover-to-explain popovers */
+  .x{color:var(--accent);border-bottom:1px dotted currentColor;cursor:help;white-space:nowrap}
+  .x::after{content:'ⓘ';font-size:.7em;vertical-align:.35em;margin-left:1px;opacity:.7}
+  .x:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
+  #pop{position:fixed;z-index:60;max-width:300px;background:#15151f;border:1px solid #2e2e3e;
+    border-radius:12px;padding:13px 15px;box-shadow:0 22px 55px -16px #000,0 0 0 1px #000;
+    font-size:13px;line-height:1.55;visibility:hidden;opacity:0;transform:translateY(4px);
+    pointer-events:none;transition:opacity .13s,transform .13s}
+  #pop.show{visibility:visible;opacity:1;transform:none;pointer-events:auto}
+  #pop h4{margin:0 0 7px;font-size:13.5px;color:var(--accent)}
+  #pop p{margin:0 0 8px}#pop p:last-child{margin:0}
+  #pop b{color:var(--ink);font-weight:600}
+  #pop .muted{color:var(--muted);font-size:12px}
+  #pop .eq{font-family:var(--mono);background:#0e0e16;border:1px solid var(--line);border-radius:7px;
+    padding:8px 10px;margin:9px 0;font-size:13px;text-align:center;color:#e6ebff}
+  /* "things to notice" cards */
+  .notice{margin-top:30px;border-top:1px solid var(--line);padding-top:24px}
+  .notice-title{font-size:12px;text-transform:uppercase;letter-spacing:1.6px;color:var(--muted);margin:0 0 14px;font-weight:600}
+  .notice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+  @media (max-width:680px){.notice-grid{grid-template-columns:1fr}}
+  .ncard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 16px}
+  .ncard h3{margin:0 0 7px;font-size:14px;font-weight:600}
+  .ncard p{margin:0 0 11px;color:var(--muted);font-size:12.5px;line-height:1.5}
+  .ncard .why{font-size:12.5px;font-weight:600}
 </style>
 </head>
 <body>
@@ -109,8 +133,8 @@
   <div class="panel">
     <h2>① Kalman filter — tracking through noise</h2>
     <div class="sub">A true path (grey) is seen only through noisy measurements (red dots). The
-      <span style="color:var(--green)">Kalman estimate</span> (and its ±2σ uncertainty band) is recovered
-      by <code>kalman.py</code>. More measurement noise → trust the model more; more process noise → trust the data more.</div>
+      <span style="color:var(--green)">Kalman estimate</span> (and its <span class="x" data-pop="sigma">±2σ</span> uncertainty band) is recovered
+      by <code>kalman.py</code>. More <span class="x" data-pop="measnoise">measurement noise</span> → trust the model more; more <span class="x" data-pop="procnoise">process noise</span> → trust the data more.</div>
     <canvas id="kalCanvas" width="900" height="280"></canvas>
     <div class="controls">
       <label>measure noise</label><input id="kR" type="range" min="0.2" max="6" step="0.2" value="4"><output id="kRo"></output>
@@ -123,7 +147,7 @@
   <div class="panel">
     <h2>② Hungarian algorithm — optimal assignment</h2>
     <div class="sub">Edit the cost matrix (rows = tracks, cols = detections). <code>assignment.py</code> finds the
-      assignment with the <b>minimum total cost</b> — highlighted. Compare it to greedy "cheapest pair first".</div>
+      <span class="x" data-pop="assignment">assignment</span> with the <b>minimum total cost</b> — highlighted. Compare it to <span class="x" data-pop="greedy">greedy</span> "cheapest pair first".</div>
     <div class="row">
       <table class="cost" id="costTable"></table>
       <div>
@@ -137,7 +161,7 @@
   <div class="panel">
     <h2>③ Non-max suppression — one box per object</h2>
     <div class="sub">A detector fires many overlapping boxes per object. <code>nms.py</code> keeps the highest-scoring
-      box and suppresses its duplicates. Slide the IoU threshold; <span style="color:var(--green)">kept</span> vs
+      box and suppresses its duplicates. Slide the <span class="x" data-pop="iou">IoU</span> threshold; <span style="color:var(--green)">kept</span> vs
       <span style="color:var(--muted)">suppressed</span>.</div>
     <canvas id="nmsCanvas" width="900" height="230"></canvas>
     <div class="controls">
@@ -149,8 +173,8 @@
   <!-- PANEL 4: Stereo -->
   <div class="panel">
     <h2>④ Block-matching stereo — disparity from a pair</h2>
-    <div class="sub">For each pixel, <code>stereo_match.py</code> slides a window along the row of the other image to
-      find the shift that matches best — the disparity (→ depth). The closer square shows a larger shift.</div>
+    <div class="sub">For each pixel, <code>stereo_match.py</code> slides a <span class="x" data-pop="block">window</span> along the row of the other image to
+      find the shift that matches best — the <span class="x" data-pop="disparity">disparity</span> (→ depth). The closer square shows a larger shift.</div>
     <div class="row" id="stereoRow">
       <div><canvas id="stLeft" width="150" height="150"></canvas><div class="label">left</div></div>
       <div><canvas id="stRight" width="150" height="150"></canvas><div class="label">right</div></div>
@@ -163,14 +187,105 @@
     <div class="readout" id="sReadout">—</div>
   </div>
 
+  <section class="notice">
+    <h2 class="notice-title">Things to notice</h2>
+    <div class="notice-grid">
+      <div class="ncard">
+        <h3>Tuning trades lag vs jitter</h3>
+        <p>Crank process noise and the estimate snaps to the data but jitters; drop it and it's silky but
+          <i>lags</i> fast or accelerating paths. A constant-velocity model can never have both.</p>
+        <span class="x why" data-pop="procnoise">Process vs measurement noise</span>
+      </div>
+      <div class="ncard">
+        <h3>Greedy isn't optimal</h3>
+        <p>Edit the matrix until "cheapest pair first" boxes itself in: grabbing one bargain can force two
+          expensive leftovers. The Hungarian algorithm minimises the <i>total</i>, not each step.</p>
+        <span class="x why" data-pop="greedy">Why greedy loses</span>
+      </div>
+      <div class="ncard">
+        <h3>One box per object</h3>
+        <p>Low IoU threshold and it over-merges (one box for two objects); high and duplicates survive.
+          The sweet spot keeps exactly one box per real object.</p>
+        <span class="x why" data-pop="iou">What IoU measures</span>
+      </div>
+      <div class="ncard">
+        <h3>Bigger window, blurrier depth</h3>
+        <p>Large blocks match reliably but smear edges and fine detail; small blocks are sharp but noisy.
+          The disparity map's crispness rides on that block-size trade-off.</p>
+        <span class="x why" data-pop="block">The block-size trade-off</span>
+      </div>
+    </div>
+  </section>
+
   <footer>
     Runs <code>src/aegis/{kalman,assignment,nms,stereo_match}.py</code> in Pyodide. Part of
     <a href="https://github.com/MikeBertin/aegis">Project AEGIS</a>.
   </footer>
 </div>
 
+<div id="pop"></div>
+
 <script src="../aegis_modules.js?v=6"></script>
 <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
 <script src="../algorithms.js?v=4"></script>
+<script>
+// ---- hover-to-explain popovers (independent of the Pyodide demo) ----
+const POP = {
+  sigma: { title:'±2σ band', html:`
+    <p>The filter's own uncertainty: roughly <b>95%</b> of the time the truth lies inside this band.</p>
+    <p class="muted">It widens when measurements are noisy and tightens as the filter gains confidence.</p>` },
+  measnoise: { title:'Measurement noise (R)', html:`
+    <p>How much you distrust each measurement. Higher R ⇒ the filter leans on its <b>motion model</b> and
+       smooths harder, riding through noisy dots.</p>` },
+  procnoise: { title:'Process noise (Q)', html:`
+    <p>How much you distrust the motion model. Higher Q ⇒ the filter trusts <b>fresh measurements</b> and
+       reacts faster — at the cost of more jitter.</p>
+    <p class="muted">A constant-velocity model with low Q lags fast or accelerating targets.</p>` },
+  assignment: { title:'The assignment problem', html:`
+    <p>Pair every track to a detection so the <b>total</b> cost is minimised. The Hungarian algorithm
+       solves it optimally in O(n³) — no enumeration of permutations.</p>` },
+  greedy: { title:'Greedy matching', html:`
+    <p>Take the cheapest pair, then the next cheapest of what's left, and so on. Fast, but grabbing one
+       bargain can strand two expensive leftovers — so the <b>total</b> can beat optimal.</p>` },
+  iou: { title:'Intersection-over-Union', html:`
+    <p>Overlap area ÷ union area of two boxes, from 0 (disjoint) to 1 (identical).</p>
+    <div class="eq">IoU = area(A∩B) / area(A∪B)</div>
+    <p class="muted">NMS suppresses any box overlapping a higher-scoring one above the threshold.</p>` },
+  disparity: { title:'Disparity', html:`
+    <p>The horizontal shift that best matches a patch between the two images. A <b>larger</b> shift means a
+       <b>closer</b> object.</p>
+    <div class="eq">Z = focal · baseline / disparity</div>` },
+  block: { title:'Block (window) size', html:`
+    <p>The matching window. <b>Bigger</b> blocks match more reliably (less noise) but blur fine detail and
+       edges; <b>smaller</b> blocks are sharp but noisier.</p>` },
+};
+(function(){
+  const pop=document.getElementById('pop'); let pinned=null;
+  function show(el){
+    const d=POP[el.dataset.pop]; if(!d) return;
+    pop.innerHTML='<h4>'+d.title+'</h4>'+d.html;
+    pop.classList.add('show');
+    const r=el.getBoundingClientRect(), p=pop.getBoundingClientRect(), m=10;
+    let left=Math.max(m, Math.min(r.left+r.width/2-p.width/2, innerWidth-p.width-m));
+    let top=r.top-p.height-10; if(top<m) top=r.bottom+10;
+    pop.style.left=left+'px'; pop.style.top=top+'px';
+  }
+  function hide(){ pop.classList.remove('show'); }
+  document.querySelectorAll('.x').forEach(el=>{
+    el.tabIndex=0; el.setAttribute('role','button');
+    el.addEventListener('mouseenter',()=>{ if(!pinned) show(el); });
+    el.addEventListener('mouseleave',()=>{ if(!pinned) hide(); });
+    el.addEventListener('focus',()=>{ if(!pinned) show(el); });
+    el.addEventListener('blur',()=>{ if(!pinned) hide(); });
+    el.addEventListener('click',e=>{ e.stopPropagation();
+      if(pinned===el){ pinned=null; hide(); } else { pinned=el; show(el); } });
+    el.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); el.click(); } });
+  });
+  pop.addEventListener('click',e=>e.stopPropagation());
+  document.addEventListener('click',()=>{ if(pinned){ pinned=null; hide(); } });
+  addEventListener('keydown',e=>{ if(e.key==='Escape'&&pinned){ pinned=null; hide(); } });
+  addEventListener('scroll',()=>{ if(pinned) show(pinned); }, true);
+})();
+</script>
 </body>
 </html>
